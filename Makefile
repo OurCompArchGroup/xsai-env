@@ -40,14 +40,19 @@ init-force:
 
 llvm:
 	./scripts/build-llvm.sh
+
 qemu:
 	cd qemu && mkdir -p build && cd build && ../configure --target-list=riscv64-softmmu,riscv64-linux-user --enable-debug --enable-zstd && make -j && cd ../..
+
 nemu:
 	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs_defconfig
 	$(MAKE) -C $(NEMU_HOME) -j
 
-xsai:
-	$(MAKE) -C $(NOOP_HOME) emu -j CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
+emu-verilator:
+	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
+
+emu-gsim:
+	$(MAKE) -C $(NOOP_HOME) gsim GSIM=1 -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
 
 test-matrix:
 	$(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(AM_HOME)/apps/llama/llama-riscv64-xs.bin
@@ -62,6 +67,12 @@ firmware:
 
 run-nemu:
 	$(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(PAYLOAD)
+
+# export QEMU_LD_PREFIX=sysroot_path
+# Setting QEMU_LD_PREFIX is necessary to avoid "Could not open '/lib/ld-linux-riscv64-lp64d.so.1': No such file or directory"
+# The sysroot_path should be set to your compiler's sysroot path, for example: QEMU_LD_PREFIX=/opt/riscv/sysroot
+run-user:
+	@$(QEMU_HOME)/build/qemu-riscv64 -cpu rv64,v=true,vlen=128,h=false,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32 firmware/riscv-rootfs/rootfsimg/build/hello_xsai
 
 run-qemu:
 	@echo "Running QEMU simulation with GCPT payload..."

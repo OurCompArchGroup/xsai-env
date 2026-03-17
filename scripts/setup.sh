@@ -24,6 +24,9 @@ user(){
     git submodule update --init "${FORCE_ARGS[@]}" qemu
     cd firmware && make init GIT_FORCE_INIT="$GIT_FORCE_INIT"; cd -;
 }
+# Install gsim to local/bin
+$XS_PROJECT_ROOT/scripts/install-gsim.sh
+
 dev
 source $(dirname "$0")/../env.sh
 # OPTIONAL: export them to .bashrc

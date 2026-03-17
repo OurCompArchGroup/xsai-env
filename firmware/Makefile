@@ -129,10 +129,7 @@ setup-submodules:
 build-rootfs: setup-submodules
 	@echo "Building root filesystem..."
 	@cd $(RISCV_ROOTFS_HOME) && \
-		$(MAKE) apps/busybox -j && \
-		$(MAKE) apps/before_workload -j && \
-		$(MAKE) apps/hello -j && \
-		$(MAKE) apps/hello_xsai -j
+		$(MAKE) rootfsimg -j
 	@echo "✓ Root filesystem built"
 
 build-linux:
@@ -156,6 +153,9 @@ build-linux:
 		./scripts/config --enable CONFIG_RISCV_ISA_V_DEFAULT_ENABLE && \
 		./scripts/config --set-val CONFIG_RISCV_ISA_V_UCOPY_THRESHOLD 768 && \
 		./scripts/config --enable CONFIG_RISCV_ISA_V_PREEMPTIVE && \
+		./scripts/config --enable CONFIG_DEVMEM && \
+		./scripts/config --disable CONFIG_STRICT_DEVMEM && \
+		./scripts/config --disable CONFIG_IO_STRICT_DEVMEM && \
 		./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_SOURCE)"
 	@echo "Building Linux kernel..."
 	@cd $(RISCV_LINUX_HOME) && yes ""|$(MAKE) -j$(shell nproc)
