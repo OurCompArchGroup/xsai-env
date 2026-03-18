@@ -2,6 +2,7 @@
 # Requirements: RISCV environment variable must point to toolchain root
 
 SHELL := /bin/bash
+SHELLFLAGS := -eu -o pipefail -c
 GIT_FORCE_INIT ?= 0
 GIT_FORCE_FLAG := $(if $(filter 1 true TRUE yes YES,$(GIT_FORCE_INIT)),--force,)
 
@@ -30,7 +31,7 @@ XSAI_EXTRA_ISA_EXTENSIONS ?= zame zammai8i32
 XSAI_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan_ai.dtb
 INITRAMFS_SOURCE ?= $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-disk-xsai.txt
 # Linux kernel version
-LINUX_VERSION := 6.10.7
+LINUX_VERSION := 6.18
 LINUX_TARBALL := linux-$(LINUX_VERSION).tar.xz
 LINUX_URL := https://cdn.kernel.org/pub/linux/kernel/v6.x/$(LINUX_TARBALL)
 
@@ -129,7 +130,7 @@ setup-submodules:
 build-rootfs: setup-submodules
 	@echo "Building root filesystem..."
 	@cd $(RISCV_ROOTFS_HOME) && \
-		$(MAKE) rootfsimg -j
+		$(MAKE) rootfsimg -j || exit $$?
 	@echo "✓ Root filesystem built"
 
 build-linux:
@@ -158,7 +159,7 @@ build-linux:
 		./scripts/config --disable CONFIG_IO_STRICT_DEVMEM && \
 		./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_SOURCE)"
 	@echo "Building Linux kernel..."
-	@cd $(RISCV_LINUX_HOME) && yes ""|$(MAKE) -j$(shell nproc)
+	@cd $(RISCV_LINUX_HOME) && yes ""|$(MAKE) -j$(shell nproc) || exit $$?
 	@echo "✓ Linux kernel built: $(LINUX_IMAGE)"
 
 build-dtb-std: setup-submodules
@@ -172,7 +173,7 @@ build-dtb-std: setup-submodules
 			$(DTS_DIRECT_MAP_ARGS) \
 			--bootargs "console=hvc0 earlycon=sbi" \
 			--mmu-type riscv,sv39 | \
-		dtc -O dtb -o build/xiangshan.dtb -
+		dtc -O dtb -o build/xiangshan.dtb - || exit $$?
 	@echo "✓ Standard DTB built: $(STD_DTB_FILE)"
 
 build-dtb: build-dtb-xsai
@@ -188,29 +189,28 @@ build-dtb-xsai: setup-submodules
 			--cpu-compatible xiangshan,ai riscv \
 			--nr-harts 1 \
 			--nemu-sdhci-addr 0x40002000 \
-			--rva-profile rva23s64 \
+			--rva-profile rva23u64 \
 			--isa-extensions $(XSAI_EXTRA_ISA_EXTENSIONS) \
 			--direct-map-mem $(XSAI_DIRECT_MAP_MEM_START) $(XSAI_DIRECT_MAP_MEM_SIZE) \
 			--bootargs "console=hvc0 earlycon=sbi" \
 			--memory-size $(XSAI_MEMORY_SIZE) \
 			--mmu-type riscv,sv48 | \
-		dtc -O dtb -o build/xiangshan_ai.dtb -
+		dtc -O dtb -o build/xiangshan_ai.dtb - || exit $$?
 	@echo "✓ XSAI DTB built: $(XSAI_DTB_FILE)"
 
 # build-opensbi: build-linux build-dtb
 build-opensbi:
 	@echo "Building OpenSBI firmware..."
 	@cd $(OPENSBI) && \
-		rm -rf build && \
 		$(MAKE) PLATFORM=generic \
 			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
 			FW_FDT_PATH=$(DTB_FILE) \
 			FW_PAYLOAD_OFFSET=0x700000 \
-			-j$(shell nproc)
+			-j$(shell nproc) || exit $$?
 	@echo "✓ OpenSBI payload built: $(OPENSBI_PAYLOAD)"
 
 build-gcpt:
-	cd $(NEMU_HOME)/resource/gcpt_restore &&make clean && make GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin
+	cd $(NEMU_HOME)/resource/gcpt_restore &&make clean && make GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin || exit $$?
 build-gcpt-t1:
 	@echo "Building GCPT checkpoint tool..."
 	@cd $(GCPT_HOME) && \
@@ -221,7 +221,7 @@ build-gcpt-t1:
 		git submodule update --init && \
 		export GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) && \
 		$(MAKE) USING_DEFAULT_CONFIG=1 -j$(shell nproc) && \
-		ls build/gcpt.bin
+		ls build/gcpt.bin || exit $$?
 	@echo "✓ GCPT binary built: $(GCPT_BIN)"
 
 clean:

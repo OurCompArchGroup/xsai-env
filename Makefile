@@ -43,7 +43,8 @@ llvm:
 	./scripts/build-llvm.sh
 
 qemu:
-	cd qemu && mkdir -p build && cd build && ../configure --target-list=riscv64-softmmu,riscv64-linux-user --enable-debug --enable-zstd && make -j && cd ../..
+	cd qemu && mkdir -p build && cd build && ../configure --target-list=riscv64-softmmu,riscv64-linux-user \
+	--enable-debug --enable-zstd --enable-plugins && make -j && cd ../..
 
 nemu:
 	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs_defconfig
@@ -53,7 +54,7 @@ emu-verilator:
 	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
 
 emu-gsim:
-	$(MAKE) -C $(NOOP_HOME) gsim GSIM=1 -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
+	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1
 
 test-matrix:
 	$(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(AM_HOME)/apps/llama/llama-riscv64-xs.bin
@@ -69,6 +70,10 @@ test:
 firmware:
 	$(MAKE) -C firmware all
 
+run-emu:
+	$(NOOP_HOME)/build/emu -i $(PAYLOAD) --no-diff	2>/dev/null
+# --diff=$(NOOP_HOME)ready-to-run/riscv64-nemu-interpreter-so
+
 run-nemu:
 	$(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(PAYLOAD)
 
@@ -83,9 +88,9 @@ run-qemu:
 	@mkdir -p $(CHECKPOINT_RESULT_ROOT)/$(CHECKPOINT_CONFIG)
 	@$(QEMU_HOME)/build/qemu-system-riscv64 \
 		-bios $(PAYLOAD) \
-		-nographic -m 16G -smp 1 \
+		-nographic -m 24G -smp 1 \
 		-serial mon:stdio \
-		-cpu rv64,v=true,vlen=128,h=false,sstc=false,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32,sv39=true,sv48=true,sv57=false,sv64=false \
+		-cpu rv64,v=true,vlen=128,h=true,sstc=true,svpbmt=true,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32,sv39=true,sv48=true,sv57=false,sv64=false \
 		-M nemu
 ## ,workload=$(WORKLOAD_NAME),cpt-interval=10000,output-base-dir=$(CHECKPOINT_RESULT_ROOT),config-name=$(CHECKPOINT_CONFIG),checkpoint-mode=SimpointCheckpoint,simpoint-path=$(SIMPOINT_RESULT_ROOT)
 	@echo "✓ QEMU simulation completed"
