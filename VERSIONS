@@ -6,7 +6,7 @@
 # Format:
 #   <submodule-path>  <commit>  <date>  <branch/tag>  <remote-url>
 
-# Generated: 2026-03-17 16:21 UTC
+# Generated: 2026-03-18 11:13 UTC
 
 # COMPONENT                     COMMIT                                      DATE                       BRANCH/TAG                      URL
 # ---------                     ------                                      ----                       ----------                      ---
@@ -19,6 +19,6 @@ firmware/nemu_board             36f986d73525fc8545e021107355df06232ad697    2025
 firmware/opensbi                74434f255873d74e56cc50aa762d1caf24c099f8    2026-01-08 14:18:14 +0530  v1.8.1                          https://github.com/riscv-software-src/opensbi.git
 firmware/riscv-rootfs           28dcbcf6ff87ea8dcb2e64b62b497e16cf19bb15    2025-03-31 14:06:39 +0800  (detached)                      https://github.com/OpenXiangShan/riscv-rootfs
 llvm-project-ame                9adfd026c209a4c8fca8d810e99e42ff520f42ab    2026-02-09 14:09:01 +0800  (detached)                      https://github.com/xyyy1420/llvm-project-ame.git
-nexus-am                        c3770bc33a391f57441104a4d7716dbf8c91a50e    2025-12-11 17:22:28 +0800  (detached)                      https://github.com/Gs-ygc/nexus-am.git
+nexus-am                        925e69ddc3ee6e986cf52954d50819f555024d33    2026-03-18 19:06:48 +0800  (detached)                      https://github.com/Gs-ygc/nexus-am.git
 qemu                            e5e1bb276851cdb737ade945d4c6dfb3ad76f59f    2026-03-02 20:14:21 +0800  9.0.0_matrix-v0.6               https://github.com/OpenXiangShan/qemu
 riscv-matrix-spec               d7ea2c471eb45d6b65f6f42bd562b46ba50bcb95    2025-11-25 11:18:22 +0800  riscv-matrix-spec-prerelease-5  https://github.com/OpenXiangShan/riscv-matrix-spec
