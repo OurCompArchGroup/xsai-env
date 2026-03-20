@@ -19,6 +19,7 @@ export RISCV_ROOTFS_HOME := $(WORK_DIR)/riscv-rootfs
 export OPENSBI := $(WORK_DIR)/opensbi
 export WORKLOAD_BUILD_ENV_HOME := $(WORK_DIR)/nemu_board
 export GCPT_HOME := $(WORK_DIR)/LibCheckpoint
+export GCPT_RESTORE_HOME := $(WORK_DIR)/gcpt_restore
 export PATH := $(RISCV)/bin:$(PATH)
 DIRECT_MAP_MEM_START ?=
 DIRECT_MAP_MEM_SIZE ?=
@@ -41,7 +42,7 @@ LINUX_IMAGE := $(RISCV_LINUX_HOME)/arch/riscv/boot/Image
 STD_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan.dtb
 DTB_FILE ?= $(XSAI_DTB_FILE)
 OPENSBI_PAYLOAD := $(OPENSBI)/build/platform/generic/firmware/fw_payload.bin
-GCPT_BIN := $(GCPT_HOME)/build/gcpt.bin	
+GCPT_BIN := $(GCPT_RESTORE_HOME)/build/gcpt.bin
 
 .PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-gcpt clean help
 
@@ -119,7 +120,7 @@ download-linux: $(LINUX_TARBALL)
 			echo "✓ Matrix patch applied"; \
 		fi
 init: download-linux
-	git submodule update --init $(GIT_FORCE_FLAG) LibCheckpoint nemu_board opensbi riscv-rootfs
+	git submodule update --init $(GIT_FORCE_FLAG) LibCheckpoint gcpt_restore nemu_board opensbi riscv-rootfs
 	git submodule update --init $(GIT_FORCE_FLAG) --recursive opensbi
 
 init-force:
@@ -220,7 +221,7 @@ build-opensbi:
 	@echo "✓ OpenSBI payload built: $(OPENSBI_PAYLOAD)"
 
 build-gcpt:
-	cd $(NEMU_HOME)/resource/gcpt_restore &&make clean && make GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin || exit $$?
+	cd $(GCPT_RESTORE_HOME) && make clean && make GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin || exit $$?
 build-gcpt-t1:
 	@echo "Building GCPT checkpoint tool..."
 	@cd $(GCPT_HOME) && \

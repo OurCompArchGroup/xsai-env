@@ -42,3 +42,6 @@
 [submodule "firmware/LibCheckpoint"]
 	path = firmware/LibCheckpoint
 	url = https://github.com/OpenXiangShan/LibCheckpoint
+[submodule "firmware/gcpt_restore"]
+	path = firmware/gcpt_restore
+	url = https://github.com/OpenXiangShan/LibCheckpointAlpha.git

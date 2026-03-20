@@ -44,7 +44,8 @@ RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-}"  # optional: resume from an existing 
 # Derived paths
 QEMU_HOME="${QEMU_HOME:-$XS_PROJECT_ROOT/qemu}"
 NEMU_HOME="${NEMU_HOME:-$XS_PROJECT_ROOT/NEMU}"
-PAYLOAD="${PAYLOAD:-$NEMU_HOME/resource/gcpt_restore/build/gcpt.bin}"
+GCPT_RESTORE_HOME="${GCPT_RESTORE_HOME:-$XS_PROJECT_ROOT/firmware/gcpt_restore}"
+PAYLOAD="${PAYLOAD:-$GCPT_RESTORE_HOME/build/gcpt.bin}"
 MODEL_IMG="${MODEL_IMG:-}"   # caller MUST set this or pass --img <path>
 
 CHECKPOINT_RESULT_ROOT="${CHECKPOINT_RESULT_ROOT:-$XS_PROJECT_ROOT/firmware/checkpoints}"

@@ -8,7 +8,8 @@ AM_HOME := $(XS_PROJECT_ROOT)/nexus-am
 NOOP_HOME := $(XS_PROJECT_ROOT)/XSAI
 LLVM_HOME := $(XS_PROJECT_ROOT)/local/llvm
 QEMU_HOME := $(XS_PROJECT_ROOT)/qemu
-PAYLOAD := $(XS_PROJECT_ROOT)/NEMU/resource/gcpt_restore/build/gcpt.bin
+GCPT_RESTORE_HOME := $(XS_PROJECT_ROOT)/firmware/gcpt_restore
+PAYLOAD := $(GCPT_RESTORE_HOME)/build/gcpt.bin
 SIMPOINT_RESULT_ROOT := $(XS_PROJECT_ROOT)/firmware/simpoints
 CHECKPOINT_RESULT_ROOT := $(XS_PROJECT_ROOT)/firmware/checkpoints
 CHECKPOINT_CONFIG := build
@@ -81,7 +82,7 @@ docker-nemu-image:
 	docker build -f centos.Dockerfile -t $(DOCKER_NEMU_IMAGE) .
 
 nemu-matrix-ref-so-docker:
-	docker run --rm --user "$(DOCKER_USER)" -e HOME=/tmp -v "$(XS_PROJECT_ROOT)":/work -w /work $(DOCKER_NEMU_IMAGE) bash -lc 'source /etc/profile && export NEMU_HOME=/work/NEMU && make -C "$$NEMU_HOME" distclean && make -C "$$NEMU_HOME" riscv64-matrix-xs-ref_defconfig && make -C "$$NEMU_HOME" -j"$$(nproc)" && cp "$$NEMU_HOME"/build/riscv64-nemu-interpreter-so /work/riscv64-nemu-interpreter-so && make -C "$$NEMU_HOME" distclean'
+	docker run --rm --user "$(DOCKER_USER)" -e HOME=/tmp -v "$(XS_PROJECT_ROOT)":/work -w /work $(DOCKER_NEMU_IMAGE) bash -lc 'source /etc/profile && export NEMU_HOME=/work/NEMU && make -C "$$NEMU_HOME" distclean && make -C "$$NEMU_HOME" riscv64-matrix-xs-ref_defconfig && make -C "$$NEMU_HOME" -j"$$(nproc)" && cp "$$NEMU_HOME"/build/riscv64-nemu-interpreter-so /work/local/riscv64-nemu-interpreter-so && make -C "$$NEMU_HOME" distclean'
 
 emu-verilator:
 	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
