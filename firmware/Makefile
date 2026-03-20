@@ -7,7 +7,7 @@ GIT_FORCE_INIT ?= 0
 GIT_FORCE_FLAG := $(if $(filter 1 true TRUE yes YES,$(GIT_FORCE_INIT)),--force,)
 
 # Environment setup
-export RISCV := /opt/riscv/
+export RISCV ?= /opt/riscv/
 export ARCH := riscv
 export CROSS_COMPILE := riscv64-unknown-linux-gnu-
 
@@ -23,9 +23,9 @@ export PATH := $(RISCV)/bin:$(PATH)
 DIRECT_MAP_MEM_START ?=
 DIRECT_MAP_MEM_SIZE ?=
 DTS_DIRECT_MAP_ARGS := $(if $(and $(DIRECT_MAP_MEM_START),$(DIRECT_MAP_MEM_SIZE)),--direct-map-mem $(DIRECT_MAP_MEM_START) $(DIRECT_MAP_MEM_SIZE),)
-XSAI_MEMORY_SIZE ?= 17179869184
+XSAI_MEMORY_SIZE ?= 0x80000000
 XSAI_DIRECT_MAP_MEM_START ?= 0x100000000
-XSAI_DIRECT_MAP_MEM_SIZE ?= 0x180000000
+XSAI_DIRECT_MAP_MEM_SIZE ?= 0x6400000
 XSAI_COMPATIBLE ?= xiangshan,ai-nemu-board xiangshan,nemu-board
 XSAI_MODEL ?= XiangShan AI
 XSAI_EXTRA_ISA_EXTENSIONS ?= zame zammai8i32
@@ -163,7 +163,11 @@ build-linux:
 		./scripts/config --enable CONFIG_DEVMEM && \
 		./scripts/config --disable CONFIG_STRICT_DEVMEM && \
 		./scripts/config --disable CONFIG_IO_STRICT_DEVMEM && \
-		./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_SOURCE)"
+		./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_SOURCE)" && \
+		./scripts/config --disable CONFIG_FLATMEM_MANUAL && \
+		./scripts/config --enable CONFIG_SPARSEMEM_MANUAL && \
+		./scripts/config --enable CONFIG_SPARSEMEM_VMEMMAP && \
+		./scripts/config --enable CONFIG_DEFERRED_STRUCT_PAGE_INIT
 	@echo "Building Linux kernel..."
 	@cd $(RISCV_LINUX_HOME) && yes ""|$(MAKE) -j$(shell nproc) || exit $$?
 	@echo "✓ Linux kernel built: $(LINUX_IMAGE)"
