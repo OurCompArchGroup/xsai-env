@@ -6,7 +6,7 @@
 # Format:
 #   <submodule-path>  <commit>  <date>  <branch/tag>  <remote-url>
 
-# Generated: 2026-03-20 14:31 UTC
+# Generated: 2026-03-20 15:59 UTC
 
 # COMPONENT                     COMMIT                                      DATE                       BRANCH/TAG                      URL
 # ---------                     ------                                      ----                       ----------                      ---
@@ -15,6 +15,7 @@ NEMU                            c44f944bea26ff3711af4c6604b618b4dc5f19ef    2026
 NutShell                        fc12171d929e7e589fab9f794ab63ce12e6c594e    2024-12-29 21:59:26 +0800  (detached)                      https://github.com/OSCPU/NutShell
 XSAI                            57b92b9a6e17d3282677e0fbf8e45adbac86b31c    2026-03-16 09:17:51 +0800  master                          https://github.com/OpenXiangShan/XSAI
 firmware/LibCheckpoint          f8c33689cdf11aa2f8f25dbf99075dca148ecd44    2024-09-05 16:28:07 +0800  (detached)                      https://github.com/OpenXiangShan/LibCheckpoint
+firmware/gcpt_restore           492de34e54a0450b096649b403d2f42b39235b8a    2025-01-21 16:55:56 +0800  (detached)                      https://github.com/OpenXiangShan/LibCheckpointAlpha.git
 firmware/nemu_board             5a2f0e614411ce08a03ea7d604016a0fe33f940c    2026-03-20 22:22:41 +0800  master                          https://github.com/OpenXiangShan/nemu_board.git
 firmware/opensbi                74434f255873d74e56cc50aa762d1caf24c099f8    2026-01-08 14:18:14 +0530  v1.8.1                          https://github.com/riscv-software-src/opensbi.git
 firmware/riscv-rootfs           8b148cde03b5c503807aa4a6579750e21fd98f3b    2026-03-20 21:51:01 +0800  checkpoint                      https://github.com/OurCompArchGroup/riscv-rootfs.git

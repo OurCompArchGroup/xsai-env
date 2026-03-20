@@ -221,6 +221,10 @@ build-opensbi:
 	@echo "✓ OpenSBI payload built: $(OPENSBI_PAYLOAD)"
 
 build-gcpt:
+	@if [ ! -f "$(GCPT_RESTORE_HOME)/Makefile" ]; then \
+		echo "Initializing gcpt_restore submodule..."; \
+		cd $(WORK_DIR) && git submodule update --init --force gcpt_restore; \
+	fi
 	cd $(GCPT_RESTORE_HOME) && make clean && make GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin || exit $$?
 build-gcpt-t1:
 	@echo "Building GCPT checkpoint tool..."

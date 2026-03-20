@@ -11,7 +11,7 @@
 [submodule "NEMU"]
 	path = NEMU
 	url = https://github.com/yu-yake2002/NEMU-Matrix.git
-	branch = dev-v0.6
+	branch = master
 [submodule "NutShell"]
 	path = NutShell
 	url = https://github.com/OSCPU/NutShell
@@ -34,7 +34,7 @@
 	url = https://github.com/riscv-software-src/opensbi.git
 [submodule "firmware/riscv-rootfs"]
 	path = firmware/riscv-rootfs
-	url = https://github.com/OpenXiangShan/riscv-rootfs
+	url = https://github.com/OurCompArchGroup/riscv-rootfs.git
 	branch = checkpoint
 [submodule "firmware/nemu_board"]
 	path = firmware/nemu_board
