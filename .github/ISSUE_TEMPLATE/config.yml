@@ -1,0 +1,17 @@
+# Adapted for xsai-env from the XiangShan issue template layout:
+# https://github.com/OpenXiangShan/XiangShan/tree/kunminghu-v3/.github/ISSUE_TEMPLATE
+
+blank_issues_enabled: false
+contact_links:
+  - name: RISC-V ISA questions
+    url: https://github.com/riscv/riscv-isa-manual/issues
+    about: Use the ISA manual repository for architecture-spec questions.
+  - name: XSAI RTL upstream issues
+    url: https://github.com/OpenXiangShan/XSAI/issues
+    about: Use the upstream XSAI repository if the problem is in the RTL code itself rather than xsai-env integration.
+  - name: riscv-rootfs upstream issues
+    url: https://github.com/OpenXiangShan/riscv-rootfs/issues
+    about: Use the upstream riscv-rootfs repository if the issue is isolated to rootfs apps or packaging logic.
+  - name: NEMU upstream issues
+    url: https://github.com/OpenXiangShan/NEMU/issues
+    about: Use the upstream NEMU repository if the failure is isolated to NEMU behavior.

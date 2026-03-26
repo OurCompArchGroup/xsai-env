@@ -1,0 +1,62 @@
+# Adapted for xsai-env from the XiangShan issue template set:
+# https://github.com/OpenXiangShan/XiangShan/tree/kunminghu-v3/.github/ISSUE_TEMPLATE
+
+name: Feature request
+description: Propose a new capability or workflow improvement for xsai-env.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for changes to the xsai-env workflow, developer experience, build orchestration, documentation, or automation.
+
+        If the requested feature belongs in an upstream component repository rather than xsai-env, please open it there instead.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched existing issues and did not find the same request.
+          required: true
+        - label: I checked whether the request belongs in xsai-env rather than an upstream component repository.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Requested area
+      options:
+        - Environment bootstrap
+        - Nix / direnv
+        - LLVM / toolchain
+        - Firmware / rootfs
+        - QEMU flow
+        - NEMU flow
+        - XSAI RTL flow
+        - CI / automation
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What feature do you want?
+      description: Describe the requested feature and why it would help.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: What problem would it solve?
+      description: Explain the current limitation, friction, or missing workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Share your preferred design, commands, interface, or constraints if you already have them.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add links, prior discussions, or related upstream work.

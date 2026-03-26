@@ -12,7 +12,7 @@ See `docs/troubleshooting.md` for mixed Nix/non-Nix rootfs artifacts and similar
 Clone the repository and initialize the environment. This only needs to be done once.
 
 ```bash
-git clone https://github.com/Gs-ygc/xsai-env
+git clone https://github.com/OurCompArchGroup/xsai-env
 cd xsai-env
 make nix-init         # Recommended: reproducible bootstrap inside the Nix devshell
 
@@ -126,6 +126,15 @@ sudo make deps       # Re-install system dependencies
 
 - See `docs/troubleshooting.md` for common failure logs, root causes, and recovery steps.
 - If you switch between Nix and non-Nix builds, clean `firmware/riscv-rootfs` app artifacts before rebuilding firmware.
+
+## Issue Reporting
+
+- GitHub issue forms live under `.github/ISSUE_TEMPLATE/` and are tailored for xsai-env integration issues.
+- The issue template structure and bug-report flow were adapted for xsai-env from the XiangShan project and then rewritten for this repository's scope.
+- Use `bash scripts/bug-report.sh` to generate an environment and repository bundle before filing a bug or build/runtime problem.
+- Use `bash scripts/create-issue.sh` for a terminal-first flow that prompts for the required fields and submits the issue with `gh issue create`.
+- If the root cause is clearly inside an upstream component repository such as XSAI, NEMU, or riscv-rootfs, file the issue upstream as well and link it from the xsai-env issue when integration context matters.
+
 ## Directory Structure
 
 ```
@@ -153,6 +162,8 @@ sudo make deps       # Re-install system dependencies
 │   ├── setup.sh           # Submodule initialization
 │   ├── setup-tools.sh     # System dependency installation
 │   ├── build-llvm.sh      # LLVM build script
+│   ├── bug-report.sh      # Issue report bundle generator
+│   ├── create-issue.sh    # Terminal-first GitHub issue submission helper
 │   ├── install-gsim.sh    # gsim auto-installer (latest GitHub release)
 │   ├── install-verilator.sh
 │   └── update-submodule.sh

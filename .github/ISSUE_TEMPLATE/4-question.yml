@@ -1,0 +1,35 @@
+# Adapted for xsai-env from the XiangShan issue template set:
+# https://github.com/OpenXiangShan/XiangShan/tree/kunminghu-v3/.github/ISSUE_TEMPLATE
+
+name: Other question
+description: Ask a question that does not fit the bug, problem, or feature request forms.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form only when the other templates do not fit.
+
+        For component-specific questions, prefer the relevant upstream repository.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start
+      options:
+        - label: I checked the README and troubleshooting notes.
+          required: true
+        - label: I searched existing issues and did not find the same question.
+          required: true
+        - label: I checked whether this question belongs in an upstream component repository.
+          required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: What is your question?
+      description: State the question clearly and include enough context for someone else to answer it.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant context
+      description: Include the branch, command, logs, file paths, or links that matter.
