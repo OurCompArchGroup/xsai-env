@@ -1,38 +1,35 @@
-# This script will check if XiangShan develop environment has been setup correctly
+#!/usr/bin/env bash
 
-# Setup XiangShan environment variables
-source $(dirname "$0")/../env.sh
-# OPTIONAL: export them to .bashrc
+set -euo pipefail
 
-# NutShell uses similiar develop environment, we use it to test
-# if develop environment has been setup correctly
-export NOOP_HOME=$(pwd)/NutShell
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
-cd ${NEMU_HOME}
+source "$ROOT/env.sh"
+export NOOP_HOME="$ROOT/NutShell"
 
-# CPT_restorer need -march=rv64gcbkvh support. Test here.
+cd "$NEMU_HOME"
+
+CPT_CROSS_COMPILE=""
 CPT_CROSS_COMPILE_LIST='riscv64-linux-gnu- riscv64-unknown-linux-gnu-'
 for COMPILE in $CPT_CROSS_COMPILE_LIST; do
-  echo | ${COMPILE}gcc -S -march=rv64gcbkvh -o /dev/null -x c -
-  if [ $? -eq 0 ]; then
-    CPT_CROSS_COMPILE=$COMPILE
-	break
+  if command -v "${COMPILE}gcc" >/dev/null 2>&1 && echo | "${COMPILE}gcc" -S -march=rv64gcbkvh -o /dev/null -x c -; then
+    CPT_CROSS_COMPILE="$COMPILE"
+    break
   fi
 done
-if [ -z $CPT_CROSS_COMPILE ]; then
+
+if [[ -z "$CPT_CROSS_COMPILE" ]]; then
   echo 'No supported RISC-V compiler found! riscv64[-unknown]-linux-gnu-gcc with -march=rv64gcbkvh support needed.'
   exit 1
 fi
-make riscv64-nutshell-ref_defconfig CPT_CROSS_COMPILE=${CPT_CROSS_COMPILE}
+
+make riscv64-nutshell-ref_defconfig CPT_CROSS_COMPILE="$CPT_CROSS_COMPILE"
 make
 
-# Compile processor project
-cd ${NOOP_HOME}
+cd "$NOOP_HOME"
 make init
 make clean
-# test if mill & Chisel has been installed correctlly
-make verilog 
-# test if verilator has been installed correctlly
+make verilog
 make emu
-# test verilator simulation
 ./build/emu -b 0 -e 0 -i ./ready-to-run/microbench.bin

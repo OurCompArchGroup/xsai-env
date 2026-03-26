@@ -1,19 +1,11 @@
-# This script will setup XiangShan environment variables
+# This script sets up the core XiangShan environment variables.
+# It is the lightweight fallback for CI and for developers who do not use direnv.
+# The richer direnv workflow lives in `.envrc` and additionally enables the Nix
+# devshell, local overrides, and submodule freshness checks.
 
-export XS_PROJECT_ROOT=$(pwd)
-export NEMU_HOME=$(pwd)/NEMU
-export AM_HOME=$(pwd)/nexus-am
-export NOOP_HOME=$(pwd)/XSAI
-export DRAMSIM3_HOME=$(pwd)/DRAMsim3
-export LLVM_HOME=$(pwd)/local/llvm
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)/scripts/env-common.sh"
+xsai_env_init
 
-export ARCH=riscv
-export CROSS_COMPILE=riscv64-linux-gnu-
-# export PATH=$LLVM_HOME/bin:$PATH
-
-echo SET XS_PROJECT_ROOT: ${XS_PROJECT_ROOT}
-echo SET NOOP_HOME \(XSAI RTL Home\): ${NOOP_HOME}
-echo SET NEMU_HOME: ${NEMU_HOME}
-echo SET AM_HOME: ${AM_HOME}
-echo SET DRAMSIM3_HOME: ${DRAMSIM3_HOME}
-echo SET LLVM_HOME: ${LLVM_HOME}
+if [[ "${XSAI_ENV_QUIET:-0}" != "1" ]]; then
+  xsai_env_print_summary
+fi

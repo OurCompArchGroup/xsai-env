@@ -1,4 +1,4 @@
-.PHONY: help deps init init-force llvm update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append _ensure_qemu _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test nix-firmware smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append _ensure_qemu _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
 
 GIT_FORCE_INIT ?= 1
 
@@ -8,8 +8,13 @@ AM_HOME ?= $(XS_PROJECT_ROOT)/nexus-am
 NOOP_HOME ?= $(XS_PROJECT_ROOT)/XSAI
 LLVM_HOME ?= $(XS_PROJECT_ROOT)/local/llvm
 QEMU_HOME ?= $(XS_PROJECT_ROOT)/qemu
+QEMU_HOST_CC ?= gcc
+QEMU_HOST_CXX ?= g++
 GCPT_RESTORE_HOME ?= $(XS_PROJECT_ROOT)/firmware/gcpt_restore
-#LibCheckpoint (多核用)
+export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME GCPT_RESTORE_HOME
+NIX_DEVSHELL ?= .\#default
+NIX_DEVELOP ?= nix develop $(NIX_DEVSHELL) -c
+# LibCheckpoint for multicore flows
 
 PAYLOAD := $(GCPT_RESTORE_HOME)/build/gcpt.bin
 
@@ -48,6 +53,12 @@ help:
 	@echo "  make init        - Initialize submodules and environment"
 	@echo "  make init-force  - Force initialize submodules to avoid empty folders"
 	@echo "  make llvm        - Build custom LLVM toolchain"
+	@echo "  make gsim        - Install the latest gsim binary to local/bin"
+	@echo "  make nix-shell   - Enter the reproducible Nix devshell"
+	@echo "  make nix-init    - Run make init-force inside the Nix devshell"
+	@echo "  make nix-test    - Run make test inside the Nix devshell"
+	@echo "  make test-smoke  - Run fast non-build smoke checks"
+	@echo "  make nix-smoke   - Run smoke checks inside the Nix devshell"
 	@echo "  make nemu        - Build NEMU simulator"
 	@echo "  make docker-nemu-image       - Build NEMU Docker image from centos.Dockerfile"
 	@echo "  make nemu-matrix-ref-so-docker - Build riscv64-matrix-xs-ref shared library in Docker"
@@ -85,9 +96,42 @@ init-force:
 llvm:
 	./scripts/build-llvm.sh
 
+gsim:
+	./scripts/install-gsim.sh
+
+nix-shell:
+	nix develop $(NIX_DEVSHELL)
+
+nix-init:
+	$(NIX_DEVELOP) make init-force
+
+nix-test:
+	$(NIX_DEVELOP) make test
+
+nix-firmware:
+	$(NIX_DEVELOP) make firmware
+
+test-smoke:
+	./scripts/smoke-test.sh --mode manual
+
+smoke: test-smoke
+
+nix-smoke:
+	$(NIX_DEVELOP) ./scripts/smoke-test.sh --mode nix
+
 qemu:
-	cd qemu && mkdir -p build && cd build && ../configure --target-list=riscv64-softmmu,riscv64-linux-user \
-	--enable-debug --enable-zstd --enable-plugins && make -j && cd ../..
+	cd qemu && mkdir -p build && cd build && \
+	env \
+	  -u CROSS_COMPILE -u CC -u CXX -u AR -u AS -u LD -u NM -u OBJCOPY -u OBJDUMP -u RANLIB -u STRIP \
+	  NIX_HARDENING_ENABLE="$${NIX_HARDENING_ENABLE//fortify/}" \
+	  ../configure \
+	    --cc=$(QEMU_HOST_CC) \
+	    --host-cc=$(QEMU_HOST_CC) \
+	    --cross-prefix= \
+	    --target-list=riscv64-softmmu,riscv64-linux-user \
+	    --disable-sdl --disable-gtk --disable-opengl --disable-slirp \
+	    --enable-zstd --enable-plugins && \
+	$(MAKE) -j
 
 nemu:
 	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs_defconfig
@@ -101,6 +145,8 @@ nemu-matrix-ref-so-docker:
 
 emu-verilator:
 	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
+
+xsai: emu-verilator
 
 emu-gsim:
 	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1
@@ -271,4 +317,3 @@ distclean:
 	$(MAKE) -C firmware distclean
 	@rm -rf local/llvm
 	@[ -d qemu/build ] && $(MAKE) -C qemu/build distclean || true
-

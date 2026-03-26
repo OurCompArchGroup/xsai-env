@@ -1,42 +1,9 @@
-# base paths
-# When sourced via source_up from a subdirectory, XS_PROJECT_ROOT is already set.
-# Only set it (and run the submodule check) when loading from the root itself.
-_ENVRC_BASE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)"
-export XS_PROJECT_ROOT="$_ENVRC_BASE_ROOT"
-export NEMU_HOME=${XS_PROJECT_ROOT}/NEMU
-export QEMU_HOME=${XS_PROJECT_ROOT}/qemu
-export AM_HOME=${XS_PROJECT_ROOT}/nexus-am
-export NOOP_HOME=${XS_PROJECT_ROOT}/XSAI
-export DRAMSIM3_HOME=${XS_PROJECT_ROOT}/DRAMsim3
-export LLVM_HOME=${XS_PROJECT_ROOT}/local/llvm
+# Base environment shared by direnv-managed shells.
+# `.envrc` is responsible for enabling the richer Nix devshell first.
 
-# firmware paths
-export XSAI_FIRMWARE_HOME=${XS_PROJECT_ROOT}/firmware
-export GCPT_RESTORE_HOME=${XSAI_FIRMWARE_HOME}/gcpt_restore
-export RISCV_LINUX_HOME=${XSAI_FIRMWARE_HOME}/riscv-linux
-export RISCV_ROOTFS_HOME=${XSAI_FIRMWARE_HOME}/riscv-rootfs
-export WORKLOAD_BUILD_ENV_HOME=${XSAI_FIRMWARE_HOME}/nemu_board
-export OPENSBI_HOME=${XSAI_FIRMWARE_HOME}/opensbi
-export LibCheckpoint=${XSAI_FIRMWARE_HOME}/LibCheckpoint
+source "$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)/scripts/env-common.sh"
+xsai_env_init
 
-# toolchain settings
-
-# xsai compiler server path and host path
-server_path=/nfs/share/riscv-toolchain-gcc15-250103
-host_path=/opt/riscv
-if [ -d "$server_path" ]; then
-export RISCV=$server_path
-elif [ -d "$host_path" ]; then
-export RISCV=$host_path
-else
-echo "Error: No RISC-V toolchain found in $server_path or $host_path"
+if declare -F log_status >/dev/null 2>&1; then
+  log_status "Environment variables set successfully."
 fi
-
-export ARCH=riscv
-export CROSS_COMPILE=riscv64-unknown-linux-gnu-
-export QEMU_LD_PREFIX=$RISCV/sysroot
-# PATH_add $RISCV/bin
-
-# PATH_add $XS_PROJECT_ROOT/local/bin
-
-log_status "Environment variables set successfully."

@@ -12,6 +12,7 @@ export ARCH := riscv
 export CROSS_COMPILE := riscv64-unknown-linux-gnu-
 
 # Directory setup
+XS_PROJECT_ROOT ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 export WORK_DIR := $(XS_PROJECT_ROOT)/firmware
 
 export RISCV_LINUX_HOME := $(WORK_DIR)/riscv-linux
@@ -21,6 +22,7 @@ export WORKLOAD_BUILD_ENV_HOME := $(WORK_DIR)/nemu_board
 export GCPT_HOME ?= $(WORK_DIR)/LibCheckpoint
 export GCPT_RESTORE_HOME ?= $(WORK_DIR)/gcpt_restore
 export PATH := $(RISCV)/bin:$(PATH)
+include $(RISCV_ROOTFS_HOME)/mk/riscv-lib-paths.mk
 DIRECT_MAP_MEM_START ?=
 DIRECT_MAP_MEM_SIZE ?=
 DTS_DIRECT_MAP_ARGS := $(if $(and $(DIRECT_MAP_MEM_START),$(DIRECT_MAP_MEM_SIZE)),--direct-map-mem $(DIRECT_MAP_MEM_START) $(DIRECT_MAP_MEM_SIZE),)
@@ -31,6 +33,7 @@ XSAI_COMPATIBLE ?= xiangshan,ai-nemu-board xiangshan,nemu-board
 XSAI_MODEL ?= XiangShan AI
 XSAI_EXTRA_ISA_EXTENSIONS ?= zame zammai8i32
 XSAI_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan_ai.dtb
+INITRAMFS_COMMON_SOURCES := $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-base.txt $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-libs.txt
 INITRAMFS_SOURCE ?= $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-disk-xsai.txt
 # Linux kernel version
 LINUX_VERSION := 6.18
@@ -74,6 +77,7 @@ help:
 	@echo "  build-rootfs     - Build root filesystem"
 	@echo "  build-linux      - Build Linux kernel"
 	@echo "                     INITRAMFS_SOURCE=$(INITRAMFS_SOURCE)"
+	@echo "                     INITRAMFS_COMMON_SOURCES=$(INITRAMFS_COMMON_SOURCES)"
 	@echo "  build-dtb        - Build XSAI device tree blob (default)"
 	@echo "  build-dtb-std    - Build standard XiangShan device tree blob"
 	@echo "                     Optional: DIRECT_MAP_MEM_START=0x100000000 DIRECT_MAP_MEM_SIZE=0x180000000"
@@ -143,6 +147,9 @@ build-linux:
 			cp $(WORKLOAD_BUILD_ENV_HOME)/configs/xiangshan_defconfig arch/riscv/configs/xiangshan_defconfig && \
 			$(MAKE) xiangshan_defconfig; \
 		fi && \
+		[ -n "$(RISCV_LD_SO)" ] && [ -n "$(RISCV_LIBC_SO)" ] && \
+		[ -n "$(RISCV_LIBRESOLV_SO)" ] && [ -n "$(RISCV_LIBM_SO)" ] && \
+		[ -n "$(RISCV_LIBDL_SO)" ] && [ -n "$(RISCV_LIBPTHREAD_SO)" ] && \
 		./scripts/config --enable CONFIG_BLOCK && \
 		./scripts/config --enable CONFIG_BLK_DEV && \
 		./scripts/config --enable CONFIG_VIRTIO_MENU && \
@@ -160,7 +167,7 @@ build-linux:
 		./scripts/config --enable CONFIG_DEVMEM && \
 		./scripts/config --disable CONFIG_STRICT_DEVMEM && \
 		./scripts/config --disable CONFIG_IO_STRICT_DEVMEM && \
-		./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_SOURCE)" && \
+		./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_COMMON_SOURCES) $(INITRAMFS_SOURCE)" && \
 		./scripts/config --disable CONFIG_FLATMEM_MANUAL && \
 		./scripts/config --enable CONFIG_SPARSEMEM_MANUAL && \
 		./scripts/config --enable CONFIG_SPARSEMEM_VMEMMAP && \
