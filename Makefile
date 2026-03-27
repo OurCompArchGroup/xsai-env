@@ -1,4 +1,6 @@
-.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test nix-firmware smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append _ensure_qemu _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test nix-firmware smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
+
+SHELL := /bin/bash
 
 GIT_FORCE_INIT ?= 1
 
@@ -45,6 +47,13 @@ CKPT_ARGS     ?=
 CCDB          ?= $(XS_PROJECT_ROOT)/local/compile_commands.json
 CCDB_MAKE     ?= firmware
 CCDB_SCRIPT   := ./scripts/update-compile-commands.sh
+PLDM_TAR_PREFIX ?= XSAI-pldm
+PLDM_BUILD_TARGET ?= verilog
+PLDM_BUILD_FLAGS ?= WITH_CHISELDB=0 WITH_CONSTANTIN=0 MFC=1 PLDM=1
+PLDM_BUILD_BACKUP_PREFIX ?= $(NOOP_HOME)/.pldm-build-backup
+PLDM_NEMU_SO ?= $(XS_PROJECT_ROOT)/local/riscv64-nemu-interpreter-so
+PLDM_SKIP_BUILD ?= 0
+PLDM_COMPRESS ?= 0
 
 help:
 	@echo "XSAI Environment Manager"
@@ -66,6 +75,8 @@ help:
 	@echo "  make test-matrix - Run matrix simple test"
 	@echo "  make update      - Update submodules to latest"
 	@echo "  make versions    - Regenerate VERSIONS file from current submodule state"
+	@echo "  make pldm        - Build XSAI verilog, package it, then restore build/"
+	@echo "                     PLDM_SKIP_BUILD=1 skips make; PLDM_COMPRESS=0 writes .tar"
 	@echo "  make test        - Test the environment"
 	@echo "  make run-qemu    - Run QEMU simulation with GCPT payload"
 	@echo "  make ccdb        - Rebuild unified compile_commands.json via bear"
@@ -161,6 +172,17 @@ update:
 versions:
 	./scripts/update-versions.sh
 
+pldm:
+	@XS_PROJECT_ROOT="$(XS_PROJECT_ROOT)" \
+	NOOP_HOME="$(NOOP_HOME)" \
+	PLDM_TAR_PREFIX="$(PLDM_TAR_PREFIX)" \
+	PLDM_BUILD_TARGET="$(PLDM_BUILD_TARGET)" \
+	PLDM_BUILD_FLAGS="$(PLDM_BUILD_FLAGS)" \
+	PLDM_BUILD_BACKUP_PREFIX="$(PLDM_BUILD_BACKUP_PREFIX)" \
+	PLDM_NEMU_SO="$(PLDM_NEMU_SO)" \
+	PLDM_SKIP_BUILD="$(PLDM_SKIP_BUILD)" \
+	PLDM_COMPRESS="$(PLDM_COMPRESS)" \
+	./scripts/pldm-package.sh
 test:
 	./scripts/env-test.sh
 firmware:

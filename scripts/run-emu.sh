@@ -147,8 +147,10 @@ _run_emu() {
         echo "[run-emu] cmd     : $NOOP_HOME/build/emu ${emu_args[*]}"
         "$NOOP_HOME/build/emu" "${emu_args[@]}" 2> "$err_log_file" | tee "$log_file"
     else
+        local err_log_file="$LOG_DIR/emu-error.log"
+        echo "[run-emu] err-log : $err_log_file"
         echo "[run-emu] cmd     : $NOOP_HOME/build/emu ${emu_args[*]}"
-        "$NOOP_HOME/build/emu" "${emu_args[@]}" 2>&1
+        "$NOOP_HOME/build/emu" "${emu_args[@]}" 2> "$err_log_file"
     fi
 }
 
