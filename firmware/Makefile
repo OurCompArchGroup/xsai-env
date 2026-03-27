@@ -22,7 +22,7 @@ export WORKLOAD_BUILD_ENV_HOME := $(WORK_DIR)/nemu_board
 export GCPT_HOME ?= $(WORK_DIR)/LibCheckpoint
 export GCPT_RESTORE_HOME ?= $(WORK_DIR)/gcpt_restore
 export PATH := $(RISCV)/bin:$(PATH)
-include $(RISCV_ROOTFS_HOME)/mk/riscv-lib-paths.mk
+include $(RISCV_ROOTFS_HOME)/riscv-lib-paths.mk
 DIRECT_MAP_MEM_START ?=
 DIRECT_MAP_MEM_SIZE ?=
 DTS_DIRECT_MAP_ARGS := $(if $(and $(DIRECT_MAP_MEM_START),$(DIRECT_MAP_MEM_SIZE)),--direct-map-mem $(DIRECT_MAP_MEM_START) $(DIRECT_MAP_MEM_SIZE),)
