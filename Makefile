@@ -189,7 +189,7 @@ $(SIMPOINT_BIN):
 	@echo "Initializing SimPoint submodule..."
 	git -C $(NEMU_HOME) submodule update --init resource/simpoint/simpoint_repo
 	@echo "Building SimPoint binary..."
-	$(MAKE) -C $(SIMPOINT_HOME) simpoint
+	$(MAKE) -C $(SIMPOINT_HOME) Simpoint
 	@echo "✓ SimPoint binary: $(SIMPOINT_BIN)"
 
 # ---------------------------------------------------------------------------
