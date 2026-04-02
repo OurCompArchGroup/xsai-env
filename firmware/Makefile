@@ -57,6 +57,7 @@ SHOW_ROOTFS_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 SHOW_LINUX_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 SHOW_OPENSBI_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 SHOW_GCPT_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
+LINUX_MAKE_JOBS ?= $(shell nproc)
 
 .PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-gcpt build-gcpt-clean clean distclean help
 
@@ -128,16 +129,18 @@ download-linux: $(LINUX_TARBALL)
 	fi
 	@ln -sfn linux-$(LINUX_VERSION) $(RISCV_LINUX_HOME)
 	@echo "Applying Matrix kernel patch (if needed)..."
-	@if [ -f "$(RISCV_LINUX_HOME)/arch/riscv/kernel/matrix.c" ]; then \
+	@if [ -f "$(RISCV_LINUX_HOME)/arch/riscv/kernel/matrix.c" ] && \
+	    grep -q "^#define SR_MS" "$(RISCV_LINUX_HOME)/arch/riscv/include/asm/csr.h"; then \
 		echo "✓ Matrix patch already present"; \
 	else \
-		bash $(WORK_DIR)/patches/apply-matrix-patch.sh "$(RISCV_LINUX_HOME)"; \
+		bash $(WORK_DIR)/patches/apply-matrix-patch.sh "$(RISCV_LINUX_HOME)" && \
 		echo "✓ Matrix patch applied"; \
 	fi
 
 init: download-linux
-	git submodule update --init $(GIT_FORCE_FLAG) LibCheckpoint gcpt_restore nemu_board opensbi riscv-rootfs
-	git submodule update --init $(GIT_FORCE_FLAG) --recursive opensbi
+	git -C "$(XS_PROJECT_ROOT)" submodule update --init $(GIT_FORCE_FLAG) firmware/LibCheckpoint firmware/gcpt_restore firmware/nemu_board firmware/riscv-rootfs
+	git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout $(GIT_FORCE_FLAG) firmware/opensbi
+	git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout $(GIT_FORCE_FLAG) --recursive firmware/opensbi
 
 init-force:
 	$(MAKE) init GIT_FORCE_INIT=1
@@ -205,13 +208,15 @@ build-linux:
 		./scripts/config --disable CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS && \
 		./scripts/config --enable CONFIG_TRANSPARENT_HUGEPAGE_MADVISE && \
 		./scripts/config --enable CONFIG_PERF_EVENTS && \
-		./scripts/config --enable CONFIG_RISCV_PMU_SBI
+		./scripts/config --enable CONFIG_RISCV_PMU_SBI && \
+		$(MAKE) olddefconfig && \
+		$(MAKE) prepare
 	@echo "Building Linux kernel..."
 	@mkdir -p $(FIRMWARE_LOG_DIR)
 	@if [ "$(SHOW_LINUX_BUILD_LOG)" = "1" ]; then \
-		cd $(RISCV_LINUX_HOME) && yes "" | $(MAKE) -j$(shell nproc); \
+		cd $(RISCV_LINUX_HOME) && $(MAKE) -j$(LINUX_MAKE_JOBS); \
 	else \
-		cd $(RISCV_LINUX_HOME) && yes "" | $(MAKE) -j$(shell nproc) > "$(LINUX_BUILD_LOG)" 2>&1 || { \
+		cd $(RISCV_LINUX_HOME) && $(MAKE) -j$(LINUX_MAKE_JOBS) > "$(LINUX_BUILD_LOG)" 2>&1 || { \
 			status=$$?; \
 			echo "✗ Linux kernel build failed. Full log: $(LINUX_BUILD_LOG)"; \
 			echo "--- Last $(BUILD_LOG_TAIL_LINES) lines of $(LINUX_BUILD_LOG) ---"; \
@@ -270,6 +275,11 @@ build-dtb-xsai: setup-submodules
 build-opensbi:
 	@echo "Building OpenSBI firmware..."
 	@mkdir -p $(FIRMWARE_LOG_DIR)
+	@if [ ! -f "$(OPENSBI)/Makefile" ]; then \
+		echo "Initializing OpenSBI submodule..."; \
+		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout firmware/opensbi; \
+		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout --recursive firmware/opensbi; \
+	fi
 	@FW_SIZE=$$(stat -c%s $(LINUX_IMAGE)) && \
 	 FW_FDT_ADDR=$$(python3 -c \
 	   "sz=$$FW_SIZE; print(hex(((sz+0x800000+0xfffff)//0x100000)*0x100000+0x80000000))") && \
