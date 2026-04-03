@@ -112,6 +112,22 @@ check_checkpoint_prereqs() {
     [[ -f "$cluster_dir/simpoints0" ]] || die "Cluster results not found: $cluster_dir/simpoints0  (run: make cluster first)"
 }
 
+build_drive_args() {
+    DRIVE_ARGS=()
+    if [[ -n "$MODEL_IMG" ]]; then
+        local drive_spec="file=$MODEL_IMG,if=none,id=drv0,format=raw"
+        if [[ ! -w "$MODEL_IMG" ]]; then
+            log "  Disk image access: read-only"
+            drive_spec+=",readonly=on"
+        fi
+
+        DRIVE_ARGS=(
+            -device virtio-blk-device,drive=drv0
+            -drive "$drive_spec"
+        )
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Phase 1 — Profiling
 # ---------------------------------------------------------------------------
@@ -128,13 +144,7 @@ do_profile() {
     log "  BBV dir   : $out_dir"
     log "  Intervals : $PROFILING_INTERVALS instructions"
 
-    local drive_args=()
-    if [[ -n "$MODEL_IMG" ]]; then
-        drive_args=(
-            -device virtio-blk-device,drive=drv0
-            -drive file="$MODEL_IMG",if=none,id=drv0,format=raw
-        )
-    fi
+    build_drive_args
 
     # Build -M nemu option: only add checkpoint= when resuming from an existing snapshot
     local nemu_opts="nemu"
@@ -150,7 +160,7 @@ do_profile() {
         -device virtserialport,chardev=char0,id=port0,name=host_guest \
         -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off \
         -serial mon:stdio \
-        "${drive_args[@]}"
+        "${DRIVE_ARGS[@]}"
 
     log "✓ Profiling complete — BBV: $out_dir/simpoint_bbv.gz"
 }
@@ -192,6 +202,13 @@ do_cluster() {
     log "  Weights   : $cluster_dir/weights0"
 }
 
+no_simpoint() {
+    local cluster_dir="$CHECKPOINT_RESULT_ROOT/cluster-0-0/$WORKLOAD_NAME"
+    mkdir -p "$cluster_dir"
+    echo "1 0" > $cluster_dir/weights0
+    echo "1 0" > $cluster_dir/simpoints0
+}
+
 # ---------------------------------------------------------------------------
 # Phase 3 — SimPoint Checkpointing
 # ---------------------------------------------------------------------------
@@ -213,13 +230,7 @@ do_checkpoint() {
     log "  Output root   : $CHECKPOINT_RESULT_ROOT"
     log "  Disk image    : ${MODEL_IMG:-(none)}"
 
-    local drive_args=()
-    if [[ -n "$MODEL_IMG" ]]; then
-        drive_args=(
-            -device virtio-blk-device,drive=drv0
-            -drive file="$MODEL_IMG",if=none,id=drv0,format=raw
-        )
-    fi
+    build_drive_args
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
@@ -230,7 +241,7 @@ do_checkpoint() {
         -device virtserialport,chardev=char0,id=port0,name=host_guest \
         -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off \
         -serial mon:stdio \
-        "${drive_args[@]}"
+        "${DRIVE_ARGS[@]}"
 
     log "✓ Checkpoint dump complete"
     log "  Results: $out_dir"
@@ -258,13 +269,7 @@ do_uniform() {
     log "  Output root   : $CHECKPOINT_RESULT_ROOT"
     log "  Disk image    : ${MODEL_IMG:-(none)}"
 
-    local drive_args=()
-    if [[ -n "$MODEL_IMG" ]]; then
-        drive_args=(
-            -device virtio-blk-device,drive=drv0
-            -drive file="$MODEL_IMG",if=none,id=drv0,format=raw
-        )
-    fi
+    build_drive_args
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
@@ -275,7 +280,7 @@ do_uniform() {
         -device virtserialport,chardev=char0,id=port0,name=host_guest \
         -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off \
         -serial mon:stdio \
-        "${drive_args[@]}"
+        "${DRIVE_ARGS[@]}"
 
     log "✓ Uniform checkpoint dump complete"
     log "  Results: $out_dir"
@@ -298,6 +303,7 @@ case "$PHASE" in
     all)
         # do_profile
         # do_cluster
+        no_simpoint
         do_checkpoint
         ;;
     *)

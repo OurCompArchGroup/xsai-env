@@ -233,7 +233,8 @@ build-dtb-std: setup-submodules
 		mkdir -p build && \
 		python3 DTSGen.py \
 			--nr-harts 1 \
-			--nemu-sdhci-addr 0x40002000 \
+			--virtio-mmio 0x10001000 5 \
+			--virtio-mmio 0x10002000 6 \
 			--rva-profile rva23u64 \
 			$(DTS_DIRECT_MAP_ARGS) \
 			--bootargs "console=hvc0 earlycon=sbi" \
@@ -253,7 +254,8 @@ build-dtb-xsai: setup-submodules
 			--model "$(XSAI_MODEL)" \
 			--cpu-compatible xiangshan,ai riscv \
 			--nr-harts 1 \
-			--nemu-sdhci-addr 0x40002000 \
+			--virtio-mmio 0x10001000 5 \
+			--virtio-mmio 0x10002000 6 \
 			--rva-profile rva23u64 \
 			--isa-extensions $(XSAI_EXTRA_ISA_EXTENSIONS) \
 			--direct-map-mem $(XSAI_DIRECT_MAP_MEM_START) $(XSAI_DIRECT_MAP_MEM_SIZE) \
