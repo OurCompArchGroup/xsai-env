@@ -12,6 +12,9 @@ LLVM_HOME ?= $(XS_PROJECT_ROOT)/local/llvm
 QEMU_HOME ?= $(XS_PROJECT_ROOT)/qemu
 QEMU_HOST_CC ?= gcc
 QEMU_HOST_CXX ?= g++
+# Host-side hardening defaults may inject CET instructions (endbr64).
+# Keep this override centralized so mixed nodes can build runnable binaries.
+HOST_NO_CET_FLAG ?= -fcf-protection=none
 GCPT_RESTORE_HOME ?= $(XS_PROJECT_ROOT)/firmware/gcpt_restore
 export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME GCPT_RESTORE_HOME
 NIX_DEVSHELL ?= .\#default
@@ -147,8 +150,8 @@ qemu:
 	$(MAKE) -j
 
 nemu:
-	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs_defconfig
-	$(MAKE) -C $(NEMU_HOME) -j
+	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs-cpt_defconfig CONFIG_CC_OPT_FLAGS="$(HOST_NO_CET_FLAG)"
+	$(MAKE) -C $(NEMU_HOME) -j CONFIG_CC_OPT_FLAGS="$(HOST_NO_CET_FLAG)"
 
 docker-nemu-image:
 	docker build -f centos.Dockerfile -t $(DOCKER_NEMU_IMAGE) .
@@ -157,12 +160,12 @@ nemu-matrix-ref-so-docker:
 	docker run --rm --user "$(DOCKER_USER)" -e HOME=/tmp -v "$(XS_PROJECT_ROOT)":/work -w /work $(DOCKER_NEMU_IMAGE) bash -lc 'source /etc/profile && export NEMU_HOME=/work/NEMU && make -C "$$NEMU_HOME" distclean && make -C "$$NEMU_HOME" riscv64-matrix-xs-ref_defconfig && make -C "$$NEMU_HOME" -j"$$(nproc)" && cp "$$NEMU_HOME"/build/riscv64-nemu-interpreter-so /work/local/riscv64-nemu-interpreter-so && make -C "$$NEMU_HOME" distclean'
 
 emu-verilator:
-	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
+	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 xsai: emu-verilator
 
 emu-gsim:
-	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1
+	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1 CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 test-matrix:
 	$(MAKE) -C ${AM_HOME}/tests/ame0.6 TOOLCHAIN=LLVM
