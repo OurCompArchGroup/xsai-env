@@ -9,15 +9,18 @@
  
  /*
   * RISC-V doesn't have heterogeneous harts yet. This need to be part of
-@@ -1161,8 +1161,18 @@
+@@ -1159,8 +1159,20 @@
+ 	else
+ 		csr_write(CSR_SCOUNTEREN, 0x2);
  
- 	/*
- 	 * Stop all the counters so that they can be enabled from perf.
+-	/* Stop all the counters so that they can be enabled from perf */
+-	pmu_sbi_stop_all(pmu);
++	/*
++	 * Stop all the counters so that they can be enabled from perf.
 +	 * In legacy mode keep fixed counters (cycle=0, instret=2) running so
 +	 * that unprivileged rdcycle/rdinstret work without a perf_event_open
 +	 * call (mcountinhibit bits 0 and 2 must stay clear).
- 	 */
--	pmu_sbi_stop_all(pmu);
++	 */
 +	if (sysctl_perf_user_access == SYSCTL_LEGACY) {
 +		unsigned long mask = pmu->cmask & ~BIT(0) & ~BIT(2);
 +		if (mask)

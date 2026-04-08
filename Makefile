@@ -12,6 +12,9 @@ LLVM_HOME ?= $(XS_PROJECT_ROOT)/local/llvm
 QEMU_HOME ?= $(XS_PROJECT_ROOT)/qemu
 QEMU_HOST_CC ?= gcc
 QEMU_HOST_CXX ?= g++
+# Host-side hardening defaults may inject CET instructions (endbr64).
+# Keep this override centralized so mixed nodes can build runnable binaries.
+HOST_NO_CET_FLAG ?= -fcf-protection=none
 GCPT_RESTORE_HOME ?= $(XS_PROJECT_ROOT)/firmware/gcpt_restore
 export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME GCPT_RESTORE_HOME
 NIX_DEVSHELL ?= .\#default
@@ -84,6 +87,7 @@ help:
 	@echo "                     PLDM_SKIP_BUILD=1 skips make; PLDM_COMPRESS=0 writes .tar"
 	@echo "  make test        - Test the environment"
 	@echo "  make run-qemu    - Run QEMU simulation with GCPT payload"
+	@echo "                     Optional: MODEL_IMG=<path/to/disk.img> attaches /dev/vda via virtio-blk"
 	@echo "  make ccdb        - Rebuild unified compile_commands.json via bear"
 	@echo "  make ccdb-append - Append a build to compile_commands.json and deduplicate"
 	@echo "  make run-emu-debug PAYLOAD=<p> DIFF=1 WAVE_BEGIN=50000 WAVE_END=180000"
@@ -152,8 +156,8 @@ qemu:
 	$(MAKE) -j
 
 nemu:
-	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs_defconfig
-	$(MAKE) -C $(NEMU_HOME) -j
+	$(MAKE) -C $(NEMU_HOME) riscv64-matrix-xs-cpt_defconfig CONFIG_CC_OPT_FLAGS="$(HOST_NO_CET_FLAG)"
+	$(MAKE) -C $(NEMU_HOME) -j CONFIG_CC_OPT_FLAGS="$(HOST_NO_CET_FLAG)"
 
 docker-nemu-image:
 	docker build -f centos.Dockerfile -t $(DOCKER_NEMU_IMAGE) .
@@ -162,12 +166,12 @@ nemu-matrix-ref-so-docker:
 	docker run --rm --user "$(DOCKER_USER)" -e HOME=/tmp -v "$(XS_PROJECT_ROOT)":/work -w /work $(DOCKER_NEMU_IMAGE) bash -lc 'source /etc/profile && export NEMU_HOME=/work/NEMU && make -C "$$NEMU_HOME" distclean && make -C "$$NEMU_HOME" riscv64-matrix-xs-ref_defconfig && make -C "$$NEMU_HOME" -j"$$(nproc)" && cp "$$NEMU_HOME"/build/riscv64-nemu-interpreter-so /work/local/riscv64-nemu-interpreter-so && make -C "$$NEMU_HOME" distclean'
 
 emu-verilator:
-	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst
+	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 xsai: emu-verilator
 
 emu-gsim:
-	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1
+	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1 CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 test-matrix:
 	$(MAKE) -C ${AM_HOME}/tests/ame0.6 TOOLCHAIN=LLVM
@@ -253,9 +257,24 @@ run-nemu: _ensure_payload _ensure_nemu
 run-user: _ensure_qemu_user
 	@$(QEMU_USER_BIN) -cpu $(QEMU_CPU_FLAGS) firmware/riscv-rootfs/rootfsimg/build/hello_xsai
 
-run-qemu: _ensure_payload _ensure_qemu
+run-qemu: _ensure_payload _ensure_qemu _ensure_model_img
 	@echo "Running QEMU simulation..."
-	@case "$(PAYLOAD)" in \
+	@set -- $(QEMU_HOME)/build/qemu-system-riscv64 \
+		-nographic -m $(MEMORY) -smp $(SMP) \
+		-serial mon:stdio \
+		-cpu "$(QEMU_CPU_FLAGS)"; \
+	if [ -n "$(MODEL_IMG)" ]; then \
+		drive_opts='file=$(abspath $(MODEL_IMG)),if=none,id=drv0,format=raw'; \
+		echo "  Disk image: $(abspath $(MODEL_IMG))"; \
+		if [ ! -w "$(MODEL_IMG)" ]; then \
+			drive_opts="$$drive_opts,readonly=on"; \
+			echo "  Disk image access: read-only"; \
+		fi; \
+		set -- "$$@" \
+			-device virtio-blk-device,drive=drv0 \
+			-drive "$$drive_opts"; \
+	fi; \
+	case "$(PAYLOAD)" in \
 	  *.gz|*.zstd|*.zst) \
 	    test -f $(RESTORER) || $(MAKE) -C firmware build-gcpt-restore; \
 	    $(QEMU_SYSTEM_BIN) \
@@ -330,6 +349,12 @@ _ensure_qemu_user:
 
 _ensure_qemu_plugin:
 	@test -f $(PROFILING_PLUGIN) || $(MAKE) qemu
+
+_ensure_model_img:
+	@if [ -n "$(MODEL_IMG)" ] && [ ! -f "$(MODEL_IMG)" ]; then \
+		echo "Disk image not found: $(MODEL_IMG)" >&2; \
+		exit 1; \
+	fi
 
 _ensure_payload:
 	@case "$(PAYLOAD)" in \

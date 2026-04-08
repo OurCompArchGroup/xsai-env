@@ -16,7 +16,7 @@ init_dev() {
   git submodule update --init "${FORCE_ARGS[@]}" --depth 1 llvm-project-ame
   git submodule update --init "${FORCE_ARGS[@]}" XSAI
   $(command -v make) -C XSAI init-force
-  $(command -v make) -C firmware init GIT_FORCE_INIT="$GIT_FORCE_INIT"
+  $(command -v make) -C firmware init-force
 }
 
 init_user() {

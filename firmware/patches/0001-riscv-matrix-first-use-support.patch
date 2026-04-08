@@ -1,13 +1,6 @@
 --- a/arch/riscv/include/asm/csr.h
 +++ b/arch/riscv/include/asm/csr.h
-@@ -30,12 +30,18 @@
- #define SR_VS_CLEAN	_AC(0x00000400, UL)
- #define SR_VS_DIRTY	_AC(0x00000600, UL)
- 
- #define SR_VS_THEAD		_AC(0x01800000, UL) /* xtheadvector Status */
- #define SR_VS_OFF_THEAD		_AC(0x00000000, UL)
- #define SR_VS_INITIAL_THEAD	_AC(0x00800000, UL)
- #define SR_VS_CLEAN_THEAD	_AC(0x01000000, UL)
+@@ -37,3 +37,9 @@
  #define SR_VS_DIRTY_THEAD	_AC(0x01800000, UL)
  
 +#define SR_MS		_AC(0x06000000, UL) /* Matrix Status */
@@ -17,8 +10,6 @@
 +#define SR_MS_DIRTY	_AC(0x06000000, UL)
 +
  #define SR_XS		_AC(0x00018000, UL) /* Extension Status */
- #define SR_XS_OFF	_AC(0x00000000, UL)
- #define SR_XS_INITIAL	_AC(0x00008000, UL)
 --- a/arch/riscv/include/asm/matrix.h
 +++ b/arch/riscv/include/asm/matrix.h
 @@ -0,0 +1,25 @@
