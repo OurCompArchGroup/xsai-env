@@ -44,11 +44,19 @@ LINUX_URL := https://cdn.kernel.org/pub/linux/kernel/v6.x/$(LINUX_TARBALL)
 LINUX_IMAGE := $(RISCV_LINUX_HOME)/arch/riscv/boot/Image
 STD_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan.dtb
 DTB_FILE ?= $(XSAI_DTB_FILE)
-OPENSBI_PAYLOAD := $(OPENSBI)/build/platform/generic/firmware/fw_payload.bin
-GCPT_BOOT_BIN := $(GCPT_RESTORE_HOME)/build/gcpt.bin
+OPENSBI_QEMU_BUILD_ROOT := $(OPENSBI)/build-qemu
+OPENSBI_NEMU_BUILD_ROOT := $(OPENSBI)/build-nemu
+OPENSBI_QEMU_PAYLOAD := $(OPENSBI_QEMU_BUILD_ROOT)/platform/generic/firmware/fw_payload.bin
+OPENSBI_NEMU_PAYLOAD := $(OPENSBI_NEMU_BUILD_ROOT)/platform/generic/firmware/fw_payload.bin
+OPENSBI_PAYLOAD ?= $(OPENSBI_QEMU_PAYLOAD)
+GCPT_QEMU_BUILD_ROOT := $(GCPT_RESTORE_HOME)/build-qemu
+GCPT_NEMU_BUILD_ROOT := $(GCPT_RESTORE_HOME)/build-nemu
+GCPT_QEMU_BIN := $(GCPT_QEMU_BUILD_ROOT)/build/gcpt.bin
+GCPT_NEMU_BIN := $(GCPT_NEMU_BUILD_ROOT)/build/gcpt.bin
+GCPT_BOOT_BIN := $(GCPT_QEMU_BIN)
 GCPT_RESTORE_BUILD_ROOT := $(GCPT_RESTORE_HOME)/restore-only
 GCPT_RESTORE_BIN := $(GCPT_RESTORE_BUILD_ROOT)/build/gcpt.bin
-GCPT_BIN := $(GCPT_RESTORE_HOME)/build/gcpt.bin
+GCPT_BIN := $(GCPT_QEMU_BIN)
 FIRMWARE_LOG_DIR ?= $(XS_PROJECT_ROOT)/log
 BUILD_LOG_TAIL_LINES ?= 50
 ROOTFS_BUILD_LOG ?= $(FIRMWARE_LOG_DIR)/rootfs-build.log
@@ -62,20 +70,22 @@ SHOW_OPENSBI_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 SHOW_GCPT_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 LINUX_MAKE_JOBS ?= $(shell nproc)
 
-.PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-gcpt build-gcpt-restore build-gcpt-clean clean distclean help
+.PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-opensbi-qemu build-opensbi-nemu _build-opensbi build-gcpt build-gcpt-qemu build-gcpt-nemu _build-gcpt build-gcpt-restore build-gcpt-clean clean distclean help
 
 all:
 	@$(MAKE) build-rootfs 
 	@$(MAKE) build-linux
 	@$(MAKE) build-dtb
-	@$(MAKE) build-opensbi
-	@$(MAKE) build-gcpt
+	@$(MAKE) build-gcpt-qemu
+	@$(MAKE) build-gcpt-nemu
 	@$(MAKE) build-gcpt-restore
 	@echo "✓ Build complete!"
 	@echo "  Linux Image: $(LINUX_IMAGE)"
 	@echo "  DTB: $(DTB_FILE)"
-	@echo "  OpenSBI Payload: $(OPENSBI_PAYLOAD)"
-	@echo "  GCPT Boot Binary: $(GCPT_BOOT_BIN)"
+	@echo "  QEMU OpenSBI Payload: $(OPENSBI_QEMU_PAYLOAD)"
+	@echo "  NEMU OpenSBI Payload: $(OPENSBI_NEMU_PAYLOAD)"
+	@echo "  QEMU GCPT Boot Binary: $(GCPT_QEMU_BIN)"
+	@echo "  NEMU GCPT Boot Binary: $(GCPT_NEMU_BIN)"
 	@echo "  GCPT Restore Binary: $(GCPT_RESTORE_BIN)"
 
 help:
@@ -102,8 +112,10 @@ help:
 	@echo "  build-dtb-std    - Build standard XiangShan device tree blob"
 	@echo "                     Optional: DIRECT_MAP_MEM_START=0x100000000 DIRECT_MAP_MEM_SIZE=0x180000000"
 	@echo "  build-dtb-xsai   - Build XSAI-specific device tree blob"
-	@echo "  build-opensbi    - Build OpenSBI firmware"
-	@echo "  build-gcpt       - Build bootable GCPT binary linked with the payload"
+	@echo "  build-opensbi    - Build QEMU OpenSBI firmware payload (runtime DTB)"
+	@echo "  build-opensbi-nemu - Build NEMU OpenSBI firmware payload (embedded DTB)"
+	@echo "  build-gcpt       - Build QEMU bootable GCPT binary linked with the payload"
+	@echo "  build-gcpt-nemu  - Build NEMU bootable GCPT binary linked with the payload"
 	@echo "  build-gcpt-restore - Build restore-only GCPT binary for checkpoint resume"
 	@echo "                     SHOW_OPENSBI_BUILD_LOG=1 to stream full OpenSBI build logs"
 	@echo "                     SHOW_GCPT_BUILD_LOG=1 to stream full GCPT build logs"
@@ -239,8 +251,6 @@ build-dtb-std: setup-submodules
 		mkdir -p build && \
 		python3 DTSGen.py \
 			--nr-harts 1 \
-			--virtio-mmio 0x10001000 5 \
-			--virtio-mmio 0x10002000 6 \
 			--rva-profile rva23u64 \
 			$(DTS_DIRECT_MAP_ARGS) \
 			--bootargs "console=hvc0 earlycon=sbi" \
@@ -260,15 +270,13 @@ build-dtb-xsai: setup-submodules
 			--model "$(XSAI_MODEL)" \
 			--cpu-compatible xiangshan,ai riscv \
 			--nr-harts 1 \
-			--virtio-mmio 0x10001000 5 \
-			--virtio-mmio 0x10002000 6 \
 			--rva-profile rva23u64 \
 			--isa-extensions $(XSAI_EXTRA_ISA_EXTENSIONS) \
 			--direct-map-mem $(XSAI_DIRECT_MAP_MEM_START) $(XSAI_DIRECT_MAP_MEM_SIZE) \
 			--bootargs "console=hvc0 earlycon=sbi" \
 			--memory-size $(XSAI_MEMORY_SIZE) \
 			--mmu-type riscv,sv48 \
-			--reserve-mem 0x80000000 0x100000 | \
+			--reserve-mem $(XSAI_RAM_BASE) $(XSAI_BOOT_RESERVE_SIZE) | \
 		dtc -O dtb -o build/xiangshan_ai.dtb - || exit $$?
 	@dtc -I dtb -O dts -o $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan_ai.dts \
 		$(XSAI_DTB_FILE) || exit $$?
@@ -280,7 +288,22 @@ build-dtb-xsai: setup-submodules
 # the DTB is placed after the kernel image with no overlap.
 # Formula (mirrors checkpoint_scripts/generate_bbl.py build_opensbi()):
 #   fdt_addr = round_up(image_size + 0x800000, 0x100000) + 0x80000000
-build-opensbi:
+build-opensbi: build-opensbi-qemu
+	@echo "✓ Default OpenSBI payload built for QEMU: $(OPENSBI_QEMU_PAYLOAD)"
+
+build-opensbi-qemu:
+	@$(MAKE) _build-opensbi \
+		OPENSBI_BUILD_ROOT=$(OPENSBI_QEMU_BUILD_ROOT) \
+		OPENSBI_PAYLOAD_OUT=$(OPENSBI_QEMU_PAYLOAD) \
+		OPENSBI_EMBED_DTB=0
+
+build-opensbi-nemu:
+	@$(MAKE) _build-opensbi \
+		OPENSBI_BUILD_ROOT=$(OPENSBI_NEMU_BUILD_ROOT) \
+		OPENSBI_PAYLOAD_OUT=$(OPENSBI_NEMU_PAYLOAD) \
+		OPENSBI_EMBED_DTB=1
+
+_build-opensbi:
 	@echo "Building OpenSBI firmware..."
 	@if [ ! -f "$(OPENSBI)/Makefile" ]; then \
 		echo "Initializing opensbi submodule with checkout mode..."; \
@@ -297,19 +320,23 @@ build-opensbi:
 	   "sz=$$FW_SIZE; print(hex(((sz+0x800000+0xfffff)//0x100000)*0x100000+0x80000000))") && \
 	 echo "  Image size     : $$FW_SIZE bytes" && \
 	 echo "  FW_PAYLOAD_FDT_ADDR: $$FW_FDT_ADDR" && \
+	 EXTRA_FW_ARGS=(); \
+	 if [ "$(OPENSBI_EMBED_DTB)" = "1" ]; then \
+	 	EXTRA_FW_ARGS+=(FW_FDT_PATH=$(DTB_FILE)); \
+	 fi; \
 	 if [ "$(SHOW_OPENSBI_BUILD_LOG)" = "1" ]; then \
-		cd $(OPENSBI) && rm -rf build && $(MAKE) PLATFORM=generic \
+		cd $(OPENSBI) && rm -rf "$(OPENSBI_BUILD_ROOT)" && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
 			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
-			FW_FDT_PATH=$(DTB_FILE) \
 			FW_PAYLOAD_OFFSET=0x100000 \
 			FW_PAYLOAD_FDT_ADDR=$$FW_FDT_ADDR \
+			"$${EXTRA_FW_ARGS[@]}" \
 			-j$(shell nproc); \
 	 else \
-		cd $(OPENSBI) && rm -rf build && $(MAKE) PLATFORM=generic \
+		cd $(OPENSBI) && rm -rf "$(OPENSBI_BUILD_ROOT)" && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
 			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
-			FW_FDT_PATH=$(DTB_FILE) \
 			FW_PAYLOAD_OFFSET=0x100000 \
 			FW_PAYLOAD_FDT_ADDR=$$FW_FDT_ADDR \
+			"$${EXTRA_FW_ARGS[@]}" \
 			-j$(shell nproc) > "$(OPENSBI_BUILD_LOG)" 2>&1 || { \
 				status=$$?; \
 				echo "✗ OpenSBI build failed. Full log: $(OPENSBI_BUILD_LOG)"; \
@@ -319,18 +346,33 @@ build-opensbi:
 			}; \
 		echo "  OpenSBI build log: $(OPENSBI_BUILD_LOG)"; \
 	 fi
-	@echo "✓ OpenSBI payload built: $(OPENSBI_PAYLOAD)"
+	@echo "✓ OpenSBI payload built: $(OPENSBI_PAYLOAD_OUT)"
 
-build-gcpt:
+build-gcpt: build-gcpt-qemu
+	@echo "✓ Default GCPT boot binary built for QEMU: $(GCPT_QEMU_BIN)"
+
+build-gcpt-qemu: build-opensbi-qemu
+	@$(MAKE) _build-gcpt \
+		GCPT_BUILD_ROOT=$(GCPT_QEMU_BUILD_ROOT) \
+		GCPT_PAYLOAD_SOURCE=$(OPENSBI_QEMU_PAYLOAD) \
+		GCPT_OUTPUT=$(GCPT_QEMU_BIN)
+
+build-gcpt-nemu: build-opensbi-nemu
+	@$(MAKE) _build-gcpt \
+		GCPT_BUILD_ROOT=$(GCPT_NEMU_BUILD_ROOT) \
+		GCPT_PAYLOAD_SOURCE=$(OPENSBI_NEMU_PAYLOAD) \
+		GCPT_OUTPUT=$(GCPT_NEMU_BIN)
+
+_build-gcpt:
 	@if [ ! -f "$(GCPT_RESTORE_HOME)/Makefile" ]; then \
 		echo "Initializing gcpt_restore submodule..."; \
 		cd $(WORK_DIR) && git submodule update --init --force gcpt_restore; \
 	fi
 	@mkdir -p $(FIRMWARE_LOG_DIR)
 	@if [ "$(SHOW_GCPT_BUILD_LOG)" = "1" ]; then \
-		cd $(GCPT_RESTORE_HOME) && $(MAKE) clean && $(MAKE) GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin; \
+		cd $(GCPT_RESTORE_HOME) && $(MAKE) O=$(GCPT_BUILD_ROOT) clean && $(MAKE) O=$(GCPT_BUILD_ROOT) GCPT_PAYLOAD_PATH=$(GCPT_PAYLOAD_SOURCE) -j && ls $(GCPT_OUTPUT); \
 	else \
-		( cd $(GCPT_RESTORE_HOME) && $(MAKE) clean && $(MAKE) GCPT_PAYLOAD_PATH=$(OPENSBI_PAYLOAD) -j && ls build/gcpt.bin ) > "$(GCPT_BUILD_LOG)" 2>&1 || { \
+		( cd $(GCPT_RESTORE_HOME) && $(MAKE) O=$(GCPT_BUILD_ROOT) clean && $(MAKE) O=$(GCPT_BUILD_ROOT) GCPT_PAYLOAD_PATH=$(GCPT_PAYLOAD_SOURCE) -j && ls $(GCPT_OUTPUT) ) > "$(GCPT_BUILD_LOG)" 2>&1 || { \
 			status=$$?; \
 			echo "✗ GCPT build failed. Full log: $(GCPT_BUILD_LOG)"; \
 			echo "--- Last $(BUILD_LOG_TAIL_LINES) lines of $(GCPT_BUILD_LOG) ---"; \
@@ -339,7 +381,7 @@ build-gcpt:
 		}; \
 			echo "  GCPT build log: $(GCPT_BUILD_LOG)"; \
 		fi
-	@echo "✓ GCPT boot binary built: $(GCPT_BOOT_BIN)"
+	@echo "✓ GCPT boot binary built: $(GCPT_OUTPUT)"
 
 build-gcpt-restore:
 	@if [ ! -f "$(GCPT_RESTORE_HOME)/Makefile" ]; then \

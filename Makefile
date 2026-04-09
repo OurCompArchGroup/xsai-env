@@ -1,4 +1,4 @@
-.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init docker-nemu-image nemu-matrix-ref-so-docker
 
 SHELL := /bin/bash
 
@@ -21,9 +21,13 @@ NIX_DEVSHELL ?= .\#default
 NIX_DEVELOP ?= nix develop $(NIX_DEVSHELL) -c
 # LibCheckpoint for multicore flows
 
-PAYLOAD := $(GCPT_RESTORE_HOME)/build/gcpt.bin
+QEMU_PAYLOAD ?= $(GCPT_RESTORE_HOME)/build-qemu/build/gcpt.bin
+NEMU_PAYLOAD ?= $(GCPT_RESTORE_HOME)/build-nemu/build/gcpt.bin
+PAYLOAD ?= $(QEMU_PAYLOAD)
+QEMU_DTB ?= $(XS_PROJECT_ROOT)/firmware/nemu_board/dts/build/xiangshan_ai.dtb
 RESTORER_BUILD_ROOT := $(GCPT_RESTORE_HOME)/restore-only
 RESTORER := $(RESTORER_BUILD_ROOT)/build/gcpt.bin
+RUN_NEMU_PAYLOAD = $(if $(filter $(QEMU_PAYLOAD),$(PAYLOAD)),$(NEMU_PAYLOAD),$(PAYLOAD))
 
 # Canonical QEMU CPU flags — keep in sync with scripts/checkpoint.sh CPU_FLAGS
 QEMU_CPU_FLAGS ?= rv64,v=true,vlen=128,h=true,sstc=true,svpbmt=true,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32,sv39=true,sv48=true,sv57=false,sv64=false
@@ -63,6 +67,14 @@ LLAMA_MODEL_QUANTIZE ?=
 CCDB          ?= $(XS_PROJECT_ROOT)/local/compile_commands.json
 CCDB_MAKE     ?= firmware
 CCDB_SCRIPT   := ./scripts/update-compile-commands.sh
+XSAI_REQUIRED_FILES := \
+	$(NOOP_HOME)/rocket-chip/common.sc \
+	$(NOOP_HOME)/rocket-chip/hardfloat/common.sc \
+	$(NOOP_HOME)/rocket-chip/cde/common.sc \
+	$(NOOP_HOME)/openLLC/common.sc \
+	$(NOOP_HOME)/huancun/common.sc \
+	$(NOOP_HOME)/coupledL2/common.sc \
+	$(NOOP_HOME)/CUTE/common.sc
 
 help:
 	@echo "XSAI Environment Manager"
@@ -166,13 +178,13 @@ docker-nemu-image:
 nemu-matrix-ref-so-docker:
 	docker run --rm --user "$(DOCKER_USER)" -e HOME=/tmp -v "$(XS_PROJECT_ROOT)":/work -w /work $(DOCKER_NEMU_IMAGE) bash -lc 'source /etc/profile && export NEMU_HOME=/work/NEMU && make -C "$$NEMU_HOME" distclean && make -C "$$NEMU_HOME" riscv64-matrix-xs-ref_defconfig && make -C "$$NEMU_HOME" -j"$$(nproc)" && cp "$$NEMU_HOME"/build/riscv64-nemu-interpreter-so /work/local/riscv64-nemu-interpreter-so && make -C "$$NEMU_HOME" distclean'
 
-emu-verilator:
-	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
+emu-verilator: _ensure_xsai_init
+	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 xsai: emu-verilator
 
 emu-gsim:
-	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig EMU_TRACE="fst" GSIM=1 CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
+	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 EMU_TRACE="fst" GSIM=1 CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 test-matrix:
 	$(MAKE) -C ${AM_HOME}/tests/ame0.6 TOOLCHAIN=LLVM
@@ -218,7 +230,7 @@ LOG       ?= 0
 EMU_SCRIPT := ./scripts/run-emu.sh
 EMU_FLAGS   = $(if $(filter 1,$(LOG)),--log,) $(if $(filter 1,$(DIFF)),--diff,)
 
-run-emu: _ensure_payload _ensure_emu
+run-emu: _ensure_qemu_payload _ensure_emu
 	$(EMU_SCRIPT) $(EMU_FLAGS) $(PAYLOAD)
 
 # RTL debug shortcut — captures both FST waveform and ChiselDB in one pass.
@@ -243,13 +255,13 @@ run-emu-debug: _ensure_emu
 	  --db --db-select "$(DB_SELECT)" \
 	  $(PAYLOAD)
 
-run-nemu: _ensure_payload _ensure_nemu
-	@case "$(PAYLOAD)" in \
+run-nemu: _ensure_nemu_payload _ensure_nemu
+	@case "$(RUN_NEMU_PAYLOAD)" in \
 	  *.gz|*.zstd|*.zst) \
 	    test -f $(RESTORER) || $(MAKE) -C firmware build-gcpt-restore; \
-	    $(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(PAYLOAD) -r $(RESTORER) ;; \
+	    $(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(RUN_NEMU_PAYLOAD) -r $(RESTORER) ;; \
 	  *) \
-	    $(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(PAYLOAD) ;; \
+	    $(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(RUN_NEMU_PAYLOAD) ;; \
 	esac
 
 # export QEMU_LD_PREFIX=sysroot_path
@@ -258,12 +270,13 @@ run-nemu: _ensure_payload _ensure_nemu
 run-user:
 	@$(QEMU_HOME)/build/qemu-riscv64 -cpu $(QEMU_USER_FLAGS) $(RISCV_ROOTFS_HOME)/apps/llama.cpp/build-riscv/bin/llama-bench -m /nfs/home/share/leguochun/model/stories15M-q8_0.gguf -h
 
-run-qemu: _ensure_payload _ensure_qemu _ensure_model_img
+run-qemu: _ensure_qemu_payload _ensure_qemu _ensure_qemu_dtb _ensure_model_img
 	@echo "Running QEMU simulation..."
 	@set -- $(QEMU_HOME)/build/qemu-system-riscv64 \
 		-nographic -m $(MEMORY) -smp $(SMP) \
 		-serial mon:stdio \
-		-cpu "$(QEMU_CPU_FLAGS)"; \
+		-cpu "$(QEMU_CPU_FLAGS)" \
+		-dtb "$(QEMU_DTB)"; \
 	if [ -n "$(MODEL_IMG)" ]; then \
 		drive_opts='file=$(abspath $(MODEL_IMG)),if=none,id=drv0,format=raw'; \
 		echo "  Disk image: $(abspath $(MODEL_IMG))"; \
@@ -278,19 +291,11 @@ run-qemu: _ensure_payload _ensure_qemu _ensure_model_img
 	case "$(PAYLOAD)" in \
 	  *.gz|*.zstd|*.zst) \
 	    test -f $(RESTORER) || $(MAKE) -C firmware build-gcpt-restore; \
-	    $(QEMU_SYSTEM_BIN) \
-	      -M nemu,checkpoint=$(PAYLOAD),gcpt-restore=$(RESTORER) \
-	      -nographic -m $(MEMORY) -smp $(SMP) \
-	      -serial mon:stdio \
-	      -cpu $(QEMU_CPU_FLAGS) ;; \
+	    set -- "$$@" -M nemu,checkpoint=$(PAYLOAD),gcpt-restore=$(RESTORER) ;; \
 	  *) \
-	    $(QEMU_SYSTEM_BIN) \
-	      -bios $(PAYLOAD) \
-	      -nographic -m $(MEMORY) -smp $(SMP) \
-	      -serial mon:stdio \
-	      -cpu $(QEMU_CPU_FLAGS) \
-	      -M nemu ;; \
-	esac
+	    set -- "$$@" -bios "$(PAYLOAD)" -M nemu ;; \
+	esac; \
+	"$$@"
 	@echo "✓ QEMU simulation completed"
 
 # ---------------------------------------------------------------------------
@@ -318,7 +323,8 @@ $(SIMPOINT_BIN):
 #   WORKLOAD_NAME CHECKPOINT_CONFIG CPT_INTERVAL PROFILING_INTERVALS
 #   SIMPOINT_MAX_K MEMORY SMP MODEL_IMG CKPT_ARGS
 # ---------------------------------------------------------------------------
-CKPT_SCRIPT := CPU_FLAGS='$(QEMU_CPU_FLAGS)' ./scripts/checkpoint.sh
+PROFILING_PLUGIN := $(QEMU_HOME)/build/contrib/plugins/libprofiling.so
+CKPT_SCRIPT := CPU_FLAGS='$(QEMU_CPU_FLAGS)' QEMU_DTB='$(QEMU_DTB)' ./scripts/checkpoint.sh
 # RESUME_CHECKPOINT: optional path to an existing checkpoint to warm-start profiling
 # Leave empty (default) for a cold-start profiling run.
 RESUME_CHECKPOINT ?=
@@ -339,6 +345,19 @@ CKPT_COMMON_FLAGS = \
 _ensure_emu:
 	@test -f $(NOOP_HOME)/build/emu || $(MAKE) emu-verilator
 
+_ensure_xsai_init:
+	@missing=0; \
+	for f in $(XSAI_REQUIRED_FILES); do \
+		if [ ! -f "$$f" ]; then \
+			echo "[xsai] missing required file: $$f"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ "$$missing" -eq 1 ]; then \
+		echo "[xsai] running make -C $(NOOP_HOME) init-force to restore submodules..."; \
+		$(MAKE) -C $(NOOP_HOME) init-force; \
+	fi
+
 _ensure_nemu:
 	@test -f $(NEMU_HOME)/build/riscv64-nemu-interpreter || $(MAKE) nemu
 
@@ -351,26 +370,41 @@ _ensure_qemu_user:
 _ensure_qemu_plugin:
 	@test -f $(PROFILING_PLUGIN) || $(MAKE) qemu
 
+_ensure_qemu_dtb:
+	@test -f $(QEMU_DTB) || $(MAKE) -C firmware build-dtb
+
 _ensure_model_img:
 	@if [ -n "$(MODEL_IMG)" ] && [ ! -f "$(MODEL_IMG)" ]; then \
 		echo "Disk image not found: $(MODEL_IMG)" >&2; \
 		exit 1; \
 	fi
 
-_ensure_payload:
+_ensure_qemu_payload:
 	@case "$(PAYLOAD)" in \
-	  "$(GCPT_RESTORE_HOME)/build/gcpt.bin") \
+	  "$(QEMU_PAYLOAD)") \
 	    if [ ! -f "$(PAYLOAD)" ]; then \
-	      echo "[payload] gcpt.bin not found, building firmware..."; \
-	      $(MAKE) firmware; \
+	      echo "[payload] QEMU gcpt.bin not found, building qemu firmware payload..."; \
+	      $(MAKE) -C firmware build-gcpt-qemu; \
 	    fi ;; \
 	  *) \
 	    test -f "$(PAYLOAD)" || { echo "Payload not found: $(PAYLOAD)" >&2; exit 1; } ;; \
 	esac
 
-_ensure_firmware:
-	@$(MAKE) _ensure_payload
+_ensure_nemu_payload:
+	@case "$(RUN_NEMU_PAYLOAD)" in \
+	  "$(NEMU_PAYLOAD)") \
+	    if [ ! -f "$(RUN_NEMU_PAYLOAD)" ]; then \
+	      echo "[payload] NEMU gcpt.bin not found, building nemu firmware payload..."; \
+	      $(MAKE) -C firmware build-gcpt-nemu; \
+	    fi ;; \
+	  *) \
+	    test -f "$(RUN_NEMU_PAYLOAD)" || { echo "Payload not found: $(RUN_NEMU_PAYLOAD)" >&2; exit 1; } ;; \
+	 esac
 
+_ensure_firmware:
+	@$(MAKE) _ensure_qemu_payload
+
+profile: _ensure_qemu _ensure_firmware _ensure_qemu_dtb
 profile: _ensure_qemu_plugin _ensure_firmware
 	$(CKPT_SCRIPT) profile $(CKPT_COMMON_FLAGS)
 
@@ -378,11 +412,12 @@ cluster: $(SIMPOINT_BIN)
 	$(CKPT_SCRIPT) cluster $(CKPT_COMMON_FLAGS)
 
 PHASE ?= all
+ckpt: $(SIMPOINT_BIN) _ensure_qemu _ensure_firmware _ensure_qemu_dtb
 ckpt: $(SIMPOINT_BIN) _ensure_qemu_plugin _ensure_firmware
 	$(CKPT_SCRIPT) $(PHASE) $(CKPT_COMMON_FLAGS)
 
 # Dump every N instructions across the whole execution, no SimPoint needed
-uniform: _ensure_qemu_plugin _ensure_firmware
+uniform: _ensure_qemu _ensure_firmware _ensure_qemu_dtb
 	$(CKPT_SCRIPT) uniform $(CKPT_COMMON_FLAGS)
 
 

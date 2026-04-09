@@ -43,7 +43,7 @@ endif
 pldm:
 ifeq ($(PLDM_SKIP_BUILD),0)
 	@echo "Building sim-verilog in $(NOOP_HOME)..."
-	$(MAKE) -C $(NOOP_HOME) sim-verilog $(PLDM_BUILD_FLAGS)
+	$(MAKE) -C $(NOOP_HOME) WITH_DRAMSIM3=1 sim-verilog $(PLDM_BUILD_FLAGS)
 else
 	@echo "Skipping build (PLDM_SKIP_BUILD=1)..."
 endif

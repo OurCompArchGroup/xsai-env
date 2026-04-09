@@ -9,11 +9,19 @@
 # Physical address map (NEMU/QEMU board, RAM base 0x80000000):
 #
 #   0x080000000  ┌──────────────────────────────┐
-#                │  Kernel-visible system RAM   │  ← XSAI_MEMORY_SIZE
-#                │  (DTB /memory node)          │
-#   0x100000000  ├──────────────────────────────┤  ← XSAI_DIRECT_MAP_MEM_START
+#                │  boot / firmware reserve     │  ← XSAI_BOOT_RESERVE_SIZE
+#                ├──────────────────────────────┤
+#                │  Kernel-visible system RAM   │
+#                │  for Linux / userspace       │
+#                │  (minus the reserved ranges) │
+#                ├──────────────────────────────┤  ← XSAI_DIRECT_MAP_MEM_START (default)
 #                │  XSAI DMA-coherent pool      │  ← XSAI_DIRECT_MAP_MEM_SIZE
-#                └──────────────────────────────┘  ← end = start + size
+#                └──────────────────────────────┘  ← 0x80000000 + XSAI_MEMORY_SIZE
+#
+# By default the pool is carved out of the top of system RAM so a 2 GB guest
+# can still reserve an XSAI pool without requiring guest RAM above 4 GB.
+# If XSAI_DIRECT_MAP_MEM_START is overridden to an address beyond system RAM,
+# MEMORY automatically expands to cover it.
 #
 # Derived QEMU/NEMU RAM size:
 #   MEMORY = max(XSAI_MEMORY_SIZE,
@@ -34,8 +42,6 @@ $(strip \
 						$(1)))))))
 endef
 
-XSAI_RAM_BASE ?= 0x80000000
-
 define _xsai_qemu_memory_size
 $(strip $(shell sys_ram=$$(( $(1) )); \
 	direct_end=$$(( $(2) + $(3) )); \
@@ -51,6 +57,13 @@ $(strip $(shell sys_ram=$$(( $(1) )); \
 	fi))
 endef
 
+define _xsai_hex_math
+$(strip $(shell printf '0x%x\n' $$(( $(1) ))))
+endef
+
+XSAI_RAM_BASE ?= 0x80000000
+XSAI_BOOT_RESERVE_SIZE ?= 0x100000
+
 # System RAM in the DTB /memory node (kernel-visible, starts at 0x80000000).
 XSAI_MEMORY_SIZE_HUMAN ?= 2GB
 XSAI_MEMORY_SIZE ?= $(call _xsai_human_to_hex,$(XSAI_MEMORY_SIZE_HUMAN))
@@ -58,11 +71,11 @@ XSAI_MEMORY_SIZE ?= $(call _xsai_human_to_hex,$(XSAI_MEMORY_SIZE_HUMAN))
 # XSAI DMA-coherent tensor pool (reserved, not in kernel address space).
 # Start address stays hexadecimal; only the size uses the human-readable knob.
 # Exported so all sub-makes inherit the values without extra passthrough rules.
-export XSAI_DIRECT_MAP_MEM_START ?= 0x100000000
+export XSAI_DIRECT_MAP_MEM_START ?= $(call _xsai_hex_math,$(XSAI_RAM_BASE) + $(XSAI_MEMORY_SIZE) - $(XSAI_DIRECT_MAP_MEM_SIZE))
 # Examples:
 #   XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 1GB
 #   XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 100MB
-XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 4GB
+XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 100MB
 export XSAI_DIRECT_MAP_MEM_SIZE ?= $(call _xsai_human_to_hex,$(XSAI_DIRECT_MAP_MEM_SIZE_HUMAN))
 
 # QEMU/NEMU physical RAM size passed to -m flag.

@@ -6,20 +6,18 @@
 # Format:
 #   <submodule-path>  <commit>  <date>  <branch/tag>  <remote-url>
 
-# Generated: 2026-03-31 09:54 UTC
+# Generated: 2026-04-09 11:56 UTC
 
 # COMPONENT                     COMMIT                                      DATE                       BRANCH/TAG                      URL
 # ---------                     ------                                      ----                       ----------                      ---
-DRAMsim3                        1d2a9bf6da8e050d975ef2669c42faa93943f489    2024-09-05 14:24:16 +0800  (detached)                      https://github.com/OpenXiangShan/DRAMsim3.git
-NEMU                            3289e20891c483f0e11cad7021d7e1f51323bf8c    2026-03-24 19:34:32 +0800  master                          https://github.com/yu-yake2002/NEMU-Matrix.git
-NutShell                        fc12171d929e7e589fab9f794ab63ce12e6c594e    2024-12-29 21:59:26 +0800  (detached)                      https://github.com/OSCPU/NutShell
-XSAI                            1a71bcaf72533fee3f36f250719e0023da514427    2026-03-26 14:55:41 +0800  master                          https://github.com/OpenXiangShan/XSAI
-firmware/LibCheckpoint          2115c400af664ba06c57114db39a777ee7e5f1d0    2025-11-18 12:36:59 +0800  master                          https://github.com/OpenXiangShan/LibCheckpoint
-firmware/gcpt_restore           492de34e54a0450b096649b403d2f42b39235b8a    2025-01-21 16:55:56 +0800  (detached)                      https://github.com/OpenXiangShan/LibCheckpointAlpha.git
-firmware/nemu_board             5a2f0e614411ce08a03ea7d604016a0fe33f940c    2026-03-20 22:22:41 +0800  master                          https://github.com/OpenXiangShan/nemu_board.git
-firmware/opensbi                74434f255873d74e56cc50aa762d1caf24c099f8    2026-01-08 14:18:14 +0530  v1.8.1                          https://github.com/riscv-software-src/opensbi.git
-firmware/riscv-rootfs           d1d4c55a84070d80af20ac7aeaa8b15418c9256e    2026-03-31 16:43:42 +0800  checkpoint                      https://github.com/OurCompArchGroup/riscv-rootfs.git
-llvm-project-ame                9adfd026c209a4c8fca8d810e99e42ff520f42ab    2026-02-09 14:09:01 +0800  (detached)                      https://github.com/xyyy1420/llvm-project-ame.git
-nexus-am                        925e69ddc3ee6e986cf52954d50819f555024d33    2026-03-18 19:06:48 +0800  (detached)                      https://github.com/Gs-ygc/nexus-am.git
-qemu                            769f12802da16b40a75806386157d9f37e11515f    2026-03-31 17:54:02 +0800  9.0.0_matrix-v0.6               https://github.com/OpenXiangShan/qemu
-riscv-matrix-spec               d7ea2c471eb45d6b65f6f42bd562b46ba50bcb95    2025-11-25 11:18:22 +0800  riscv-matrix-spec-prerelease-5  https://github.com/OpenXiangShan/riscv-matrix-spec
+DRAMsim3                        1d2a9bf6da8e050d975ef2669c42faa93943f489    2024-09-05 14:24:16 +0800  (detached)                      git@github.com:OpenXiangShan/DRAMsim3.git
+NEMU                            3289e20891c483f0e11cad7021d7e1f51323bf8c    2026-03-24 19:34:32 +0800  (detached)                      git@github.com:yu-yake2002/NEMU-Matrix.git
+XSAI                            1a71bcaf72533fee3f36f250719e0023da514427    2026-03-26 14:55:41 +0800  (detached)                      git@github.com:OpenXiangShan/XSAI
+firmware/LibCheckpoint          f8c33689cdf11aa2f8f25dbf99075dca148ecd44    2024-09-05 16:28:07 +0800  (detached)                      git@github.com:OpenXiangShan/LibCheckpoint
+firmware/gcpt_restore           492de34e54a0450b096649b403d2f42b39235b8a    2025-01-21 16:55:56 +0800  (detached)                      git@github.com:OpenXiangShan/LibCheckpointAlpha.git
+firmware/nemu_board             5a2f0e614411ce08a03ea7d604016a0fe33f940c    2026-03-20 22:22:41 +0800  (detached)                      git@github.com:OpenXiangShan/nemu_board.git
+firmware/opensbi                74434f255873d74e56cc50aa762d1caf24c099f8    2026-01-08 14:18:14 +0530  v1.8.1                          git@github.com:riscv-software-src/opensbi.git
+firmware/riscv-rootfs           4129b3a41f326487976cc9719ec3c650ce9c31f0    2026-04-08 20:44:17 +0800  checkpoint                      git@github.com:OurCompArchGroup/riscv-rootfs.git
+nexus-am                        925e69ddc3ee6e986cf52954d50819f555024d33    2026-03-18 19:06:48 +0800  (detached)                      git@github.com:Gs-ygc/nexus-am.git
+qemu                            710c609ab1bb7907c5c9dfdd0df0b508a27cd3e0    2026-04-09 19:25:04 +0800  9.0.0_matrix-v0.6               git@github.com:OpenXiangShan/qemu
+riscv-matrix-spec               d7ea2c471eb45d6b65f6f42bd562b46ba50bcb95    2025-11-25 11:18:22 +0800  riscv-matrix-spec-prerelease-5  git@github.com:OpenXiangShan/riscv-matrix-spec

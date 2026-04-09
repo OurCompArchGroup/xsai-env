@@ -47,6 +47,7 @@ NEMU_HOME="${NEMU_HOME:-$XS_PROJECT_ROOT/NEMU}"
 GCPT_RESTORE_HOME="${GCPT_RESTORE_HOME:-$XS_PROJECT_ROOT/firmware/LibCheckpoint}"
 PAYLOAD="${PAYLOAD:-$GCPT_RESTORE_HOME/build/gcpt.bin}"
 MODEL_IMG="${MODEL_IMG:-}"   # caller MUST set this or pass --img <path>
+QEMU_DTB="${QEMU_DTB:-$XS_PROJECT_ROOT/firmware/nemu_board/dts/build/xiangshan_ai.dtb}"
 
 CHECKPOINT_RESULT_ROOT="${CHECKPOINT_RESULT_ROOT:-$XS_PROJECT_ROOT/firmware/checkpoints}"
 SIMPOINT_BIN="${SIMPOINT_BIN:-$NEMU_HOME/resource/simpoint/simpoint_repo/bin/simpoint}"
@@ -91,6 +92,7 @@ check_prereqs() {
     need dtc
     [[ -x "$QEMU_BIN" ]]        || die "QEMU not found: $QEMU_BIN  (run: make qemu)"
     [[ -f "$PAYLOAD" ]]         || die "GCPT payload not found: $PAYLOAD  (run: make firmware or make build-gcpt)"
+    [[ -f "$QEMU_DTB" ]]        || die "DTB not found: $QEMU_DTB  (run: make -C firmware build-dtb)"
 }
 
 check_profiling_prereqs() {
@@ -152,6 +154,7 @@ do_profile() {
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
+        -dtb "$QEMU_DTB" \
         -M "$nemu_opts" \
         -nographic -m "$MEMORY" -smp "$SMP" \
         -cpu "$CPU_FLAGS" \
@@ -234,6 +237,7 @@ do_checkpoint() {
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
+        -dtb "$QEMU_DTB" \
         -M "nemu,simpoint-path=$cluster_dir,workload=$WORKLOAD_NAME,cpt-interval=$CPT_INTERVAL,output-base-dir=$CHECKPOINT_RESULT_ROOT,config-name=$CHECKPOINT_CONFIG,checkpoint-mode=SimpointCheckpoint" \
         -nographic -m "$MEMORY" -smp "$SMP" \
         -cpu "$CPU_FLAGS" \
@@ -273,6 +277,7 @@ do_uniform() {
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
+        -dtb "$QEMU_DTB" \
         -M "nemu,workload=$WORKLOAD_NAME,cpt-interval=$CPT_INTERVAL,output-base-dir=$CHECKPOINT_RESULT_ROOT,config-name=$CHECKPOINT_CONFIG,checkpoint-mode=UniformCheckpoint" \
         -nographic -m "$MEMORY" -smp "$SMP" \
         -cpu "$CPU_FLAGS" \
