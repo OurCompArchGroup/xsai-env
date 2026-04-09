@@ -45,6 +45,9 @@ LINUX_IMAGE := $(RISCV_LINUX_HOME)/arch/riscv/boot/Image
 STD_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan.dtb
 DTB_FILE ?= $(XSAI_DTB_FILE)
 OPENSBI_PAYLOAD := $(OPENSBI)/build/platform/generic/firmware/fw_payload.bin
+GCPT_BOOT_BIN := $(GCPT_RESTORE_HOME)/build/gcpt.bin
+GCPT_RESTORE_BUILD_ROOT := $(GCPT_RESTORE_HOME)/restore-only
+GCPT_RESTORE_BIN := $(GCPT_RESTORE_BUILD_ROOT)/build/gcpt.bin
 GCPT_BIN := $(GCPT_RESTORE_HOME)/build/gcpt.bin
 FIRMWARE_LOG_DIR ?= $(XS_PROJECT_ROOT)/log
 BUILD_LOG_TAIL_LINES ?= 50
@@ -59,7 +62,7 @@ SHOW_OPENSBI_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 SHOW_GCPT_BUILD_LOG ?= $(SHOW_FIRMWARE_BUILD_LOGS)
 LINUX_MAKE_JOBS ?= $(shell nproc)
 
-.PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-gcpt build-gcpt-clean clean distclean help
+.PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-gcpt build-gcpt-restore build-gcpt-clean clean distclean help
 
 all:
 	@$(MAKE) build-rootfs 
@@ -67,11 +70,13 @@ all:
 	@$(MAKE) build-dtb
 	@$(MAKE) build-opensbi
 	@$(MAKE) build-gcpt
+	@$(MAKE) build-gcpt-restore
 	@echo "✓ Build complete!"
 	@echo "  Linux Image: $(LINUX_IMAGE)"
 	@echo "  DTB: $(DTB_FILE)"
 	@echo "  OpenSBI Payload: $(OPENSBI_PAYLOAD)"
-	@echo "  GCPT Binary: $(GCPT_BIN)"
+	@echo "  GCPT Boot Binary: $(GCPT_BOOT_BIN)"
+	@echo "  GCPT Restore Binary: $(GCPT_RESTORE_BIN)"
 
 help:
 	@echo "RISC-V Firmware Build System"
@@ -98,8 +103,9 @@ help:
 	@echo "                     Optional: DIRECT_MAP_MEM_START=0x100000000 DIRECT_MAP_MEM_SIZE=0x180000000"
 	@echo "  build-dtb-xsai   - Build XSAI-specific device tree blob"
 	@echo "  build-opensbi    - Build OpenSBI firmware"
+	@echo "  build-gcpt       - Build bootable GCPT binary linked with the payload"
+	@echo "  build-gcpt-restore - Build restore-only GCPT binary for checkpoint resume"
 	@echo "                     SHOW_OPENSBI_BUILD_LOG=1 to stream full OpenSBI build logs"
-	@echo "  build-gcpt       - Build GCPT checkpoint tool (incremental)"
 	@echo "                     SHOW_GCPT_BUILD_LOG=1 to stream full GCPT build logs"
 	@echo "  build-gcpt-clean - Force clean rebuild of GCPT (after editing csr.h etc.)"
 	@echo "  clean            - Clean build artifacts"
@@ -276,6 +282,10 @@ build-dtb-xsai: setup-submodules
 #   fdt_addr = round_up(image_size + 0x800000, 0x100000) + 0x80000000
 build-opensbi:
 	@echo "Building OpenSBI firmware..."
+	@if [ ! -f "$(OPENSBI)/Makefile" ]; then \
+		echo "Initializing opensbi submodule with checkout mode..."; \
+		git -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout opensbi; \
+	fi
 	@mkdir -p $(FIRMWARE_LOG_DIR)
 	@if [ ! -f "$(OPENSBI)/Makefile" ]; then \
 		echo "Initializing OpenSBI submodule..."; \
@@ -327,9 +337,16 @@ build-gcpt:
 			tail -n $(BUILD_LOG_TAIL_LINES) "$(GCPT_BUILD_LOG)"; \
 			exit $$status; \
 		}; \
-		echo "  GCPT build log: $(GCPT_BUILD_LOG)"; \
+			echo "  GCPT build log: $(GCPT_BUILD_LOG)"; \
+		fi
+	@echo "✓ GCPT boot binary built: $(GCPT_BOOT_BIN)"
+
+build-gcpt-restore:
+	@if [ ! -f "$(GCPT_RESTORE_HOME)/Makefile" ]; then \
+		echo "Initializing gcpt_restore submodule..."; \
+		cd $(WORK_DIR) && git submodule update --init --force gcpt_restore; \
 	fi
-	@echo "✓ GCPT binary built: $(GCPT_BIN)"
+	cd $(GCPT_RESTORE_HOME) && $(MAKE) O=$(GCPT_RESTORE_BUILD_ROOT) clean && $(MAKE) O=$(GCPT_RESTORE_BUILD_ROOT) -j && ls $(GCPT_RESTORE_BIN) || exit $$?
 
 # Force a clean rebuild of gcpt (useful after editing src/csr.h etc.)
 build-gcpt-clean:
@@ -369,6 +386,7 @@ clean:
 	@[ -d "$(OPENSBI)" ] && cd $(OPENSBI) && $(MAKE) clean && rm -rf build || true
 	@[ -d "$(GCPT_HOME)" ] && cd $(GCPT_HOME) && $(MAKE) clean || true
 	@[ -d "$(GCPT_RESTORE_HOME)" ] && cd $(GCPT_RESTORE_HOME) && $(MAKE) clean || true
+	@rm -rf $(GCPT_RESTORE_BUILD_ROOT)
 	@[ -d "$(RISCV_ROOTFS_HOME)" ] && cd $(RISCV_ROOTFS_HOME) && $(MAKE) clean || true
 	@echo "✓ Clean complete"
 

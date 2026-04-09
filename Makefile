@@ -1,4 +1,4 @@
-.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware docker-nemu-image nemu-matrix-ref-so-docker
 
 SHELL := /bin/bash
 
@@ -22,6 +22,8 @@ NIX_DEVELOP ?= nix develop $(NIX_DEVSHELL) -c
 # LibCheckpoint for multicore flows
 
 PAYLOAD := $(GCPT_RESTORE_HOME)/build/gcpt.bin
+RESTORER_BUILD_ROOT := $(GCPT_RESTORE_HOME)/restore-only
+RESTORER := $(RESTORER_BUILD_ROOT)/build/gcpt.bin
 
 # Canonical QEMU CPU flags — keep in sync with scripts/checkpoint.sh CPU_FLAGS
 QEMU_CPU_FLAGS ?= rv64,v=true,vlen=128,h=true,sstc=true,svpbmt=true,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32,sv39=true,sv48=true,sv57=false,sv64=false
@@ -47,6 +49,10 @@ SIMPOINT_MAX_K      ?= 10
 SMP           ?= 1
 # Pass extra args straight to checkpoint.sh, e.g. CKPT_ARGS="--config my-run"
 CKPT_ARGS     ?=
+QEMU_BUILD_DIR := $(QEMU_HOME)/build
+QEMU_SYSTEM_BIN := $(QEMU_BUILD_DIR)/qemu-system-riscv64
+QEMU_USER_BIN := $(QEMU_BUILD_DIR)/qemu-riscv64
+PROFILING_PLUGIN := $(QEMU_BUILD_DIR)/contrib/plugins/libprofiling.so
 # llama.cpp model selection (passed through to firmware/riscv-rootfs/apps/llama.cpp)
 LLAMA_MODEL_PRESET  ?= stories15M
 LLAMA_MODEL_KIND    ?=
@@ -137,7 +143,7 @@ nix-smoke:
 	$(NIX_DEVELOP) ./scripts/smoke-test.sh --mode nix
 
 qemu:
-	cd qemu && mkdir -p build && cd build && \
+	cd $(QEMU_HOME) && mkdir -p build && cd build && \
 	env \
 	  -u CROSS_COMPILE -u CC -u CXX -u AR -u AS -u LD -u NM -u OBJCOPY -u OBJDUMP -u RANLIB -u STRIP \
 	  NIX_HARDENING_ENABLE="$${NIX_HARDENING_ENABLE//fortify/}" \
@@ -237,11 +243,10 @@ run-emu-debug: _ensure_emu
 	  --db --db-select "$(DB_SELECT)" \
 	  $(PAYLOAD)
 
-RESTORER  ?= $(GCPT_RESTORE_HOME)/build/gcpt.bin
-
 run-nemu: _ensure_payload _ensure_nemu
 	@case "$(PAYLOAD)" in \
 	  *.gz|*.zstd|*.zst) \
+	    test -f $(RESTORER) || $(MAKE) -C firmware build-gcpt-restore; \
 	    $(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(PAYLOAD) -r $(RESTORER) ;; \
 	  *) \
 	    $(NEMU_HOME)/build/riscv64-nemu-interpreter -b $(PAYLOAD) ;; \
@@ -272,11 +277,20 @@ run-qemu: _ensure_payload _ensure_qemu _ensure_model_img
 	fi; \
 	case "$(PAYLOAD)" in \
 	  *.gz|*.zstd|*.zst) \
-	    set -- "$$@" -M nemu,checkpoint=$(PAYLOAD),gcpt-restore=$(RESTORER) ;; \
+	    test -f $(RESTORER) || $(MAKE) -C firmware build-gcpt-restore; \
+	    $(QEMU_SYSTEM_BIN) \
+	      -M nemu,checkpoint=$(PAYLOAD),gcpt-restore=$(RESTORER) \
+	      -nographic -m $(MEMORY) -smp $(SMP) \
+	      -serial mon:stdio \
+	      -cpu $(QEMU_CPU_FLAGS) ;; \
 	  *) \
-	    set -- "$$@" -bios "$(PAYLOAD)" -M nemu ;; \
-	esac; \
-	"$$@"
+	    $(QEMU_SYSTEM_BIN) \
+	      -bios $(PAYLOAD) \
+	      -nographic -m $(MEMORY) -smp $(SMP) \
+	      -serial mon:stdio \
+	      -cpu $(QEMU_CPU_FLAGS) \
+	      -M nemu ;; \
+	esac
 	@echo "✓ QEMU simulation completed"
 
 # ---------------------------------------------------------------------------
@@ -288,7 +302,7 @@ $(SIMPOINT_BIN):
 	@echo "Initializing SimPoint submodule..."
 	git -C $(NEMU_HOME) submodule update --init resource/simpoint/simpoint_repo
 	@echo "Building SimPoint binary..."
-	$(MAKE) -C $(SIMPOINT_HOME) simpoint
+	$(MAKE) -C $(SIMPOINT_HOME) Simpoint
 	@echo "✓ SimPoint binary: $(SIMPOINT_BIN)"
 
 # ---------------------------------------------------------------------------
@@ -304,7 +318,6 @@ $(SIMPOINT_BIN):
 #   WORKLOAD_NAME CHECKPOINT_CONFIG CPT_INTERVAL PROFILING_INTERVALS
 #   SIMPOINT_MAX_K MEMORY SMP MODEL_IMG CKPT_ARGS
 # ---------------------------------------------------------------------------
-PROFILING_PLUGIN := $(QEMU_HOME)/build/contrib/plugins/libprofiling.so
 CKPT_SCRIPT := CPU_FLAGS='$(QEMU_CPU_FLAGS)' ./scripts/checkpoint.sh
 # RESUME_CHECKPOINT: optional path to an existing checkpoint to warm-start profiling
 # Leave empty (default) for a cold-start profiling run.
@@ -330,6 +343,12 @@ _ensure_nemu:
 	@test -f $(NEMU_HOME)/build/riscv64-nemu-interpreter || $(MAKE) nemu
 
 _ensure_qemu:
+	@test -f $(QEMU_SYSTEM_BIN) || $(MAKE) qemu
+
+_ensure_qemu_user:
+	@test -f $(QEMU_USER_BIN) || $(MAKE) qemu
+
+_ensure_qemu_plugin:
 	@test -f $(PROFILING_PLUGIN) || $(MAKE) qemu
 
 _ensure_model_img:
@@ -352,18 +371,18 @@ _ensure_payload:
 _ensure_firmware:
 	@$(MAKE) _ensure_payload
 
-profile: _ensure_qemu _ensure_firmware
+profile: _ensure_qemu_plugin _ensure_firmware
 	$(CKPT_SCRIPT) profile $(CKPT_COMMON_FLAGS)
 
 cluster: $(SIMPOINT_BIN)
 	$(CKPT_SCRIPT) cluster $(CKPT_COMMON_FLAGS)
 
 PHASE ?= all
-ckpt: $(SIMPOINT_BIN) _ensure_qemu _ensure_firmware
+ckpt: $(SIMPOINT_BIN) _ensure_qemu_plugin _ensure_firmware
 	$(CKPT_SCRIPT) $(PHASE) $(CKPT_COMMON_FLAGS)
 
 # Dump every N instructions across the whole execution, no SimPoint needed
-uniform: _ensure_qemu _ensure_firmware
+uniform: _ensure_qemu_plugin _ensure_firmware
 	$(CKPT_SCRIPT) uniform $(CKPT_COMMON_FLAGS)
 
 
@@ -375,4 +394,4 @@ distclean:
 	$(MAKE) -C $(NEMU_HOME) distclean
 	$(MAKE) -C firmware distclean
 	@rm -rf local/llvm
-	@[ -d qemu/build ] && $(MAKE) -C qemu/build distclean || true
+	@[ -d $(QEMU_BUILD_DIR) ] && $(MAKE) -C $(QEMU_BUILD_DIR) distclean || true
