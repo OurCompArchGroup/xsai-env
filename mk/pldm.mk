@@ -11,11 +11,20 @@ PLDM_NEMU_SO            ?= $(XS_PROJECT_ROOT)/local/riscv64-nemu-interpreter-so
 PLDM_SKIP_BUILD         ?= 0
 PLDM_COMPRESS           ?= 1
 PLDM_KEEP_BUILD         ?= 0
+RELEASE                 ?= 1
 
 # Default PLDM configuration (local development)
 PLDM_CONFIG_DEFAULT := DefaultMatrixConfig
 PLDM_FLAGS_DEFAULT  := CONFIG=$(PLDM_CONFIG_DEFAULT) \
                        PLDM=1 MFC=1 \
+                       WITH_CHISELDB=0 WITH_CONSTANTIN=0 \
+                       SIM_MEM_SIZE=8 \
+                       DEBUG_ARGS="--difftest-config ZESNHP"
+
+PLDM_FLAGS_RELEASE  := CONFIG=$(PLDM_CONFIG_DEFAULT) \
+                       PLDM=1 MFC=1 NUM_CORES=1 \
+                       WITH_DRAMSIM3=1 \
+                       RELEASE=1 \
                        WITH_CHISELDB=0 WITH_CONSTANTIN=0 \
                        SIM_MEM_SIZE=8 \
                        DEBUG_ARGS="--difftest-config ZESNHP"
@@ -30,6 +39,8 @@ PLDM_FLAGS_CI       := CONFIG=$(PLDM_CONFIG_CI) \
 # Select config based on PLDM_CI flag
 ifeq ($(PLDM_CI),1)
   PLDM_BUILD_FLAGS := $(PLDM_FLAGS_CI) -j
+else ifeq ($(RELEASE),1)
+  PLDM_BUILD_FLAGS := $(PLDM_FLAGS_RELEASE) -j
 else
   PLDM_BUILD_FLAGS := $(PLDM_FLAGS_DEFAULT) -j
 endif
