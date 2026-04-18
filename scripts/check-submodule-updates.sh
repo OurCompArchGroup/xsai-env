@@ -33,6 +33,9 @@ _submodule_list() {
       local branch
       branch=$(git -C "$root" config --file "$gitmodules" \
                --get "submodule.${path}.branch" 2>/dev/null)
+      if [[ -n "$branch" ]] && ! git -C "$subdir" rev-parse --verify -q "refs/remotes/origin/$branch^{commit}" >/dev/null 2>&1; then
+        branch=""
+      fi
       if [[ -z "$branch" ]]; then
         # not on a named branch (detached HEAD): try origin/HEAD → main → master
         branch=$(git -C "$subdir" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null \
@@ -55,27 +58,27 @@ check_submodule_updates() {
   local has_update=0
   local rel_root
   if [[ -n "${XS_PROJECT_ROOT:-}" && "$root" == "$XS_PROJECT_ROOT"* ]]; then
-    rel_root="\${XS_PROJECT_ROOT}${root#$XS_PROJECT_ROOT}"
+    rel_root="${XS_PROJECT_ROOT}${root#$XS_PROJECT_ROOT}"
   else
     rel_root="${root/#$HOME/~}"
   fi
 
   while read -r path branch; do
     local subdir="$root/$path"
-    local local_sha remote_sha
+    local local_sha remote_sha behind
     local_sha=$(git -C "$subdir" rev-parse HEAD 2>/dev/null)
-    remote_sha=$(git -C "$subdir" rev-parse "origin/$branch" 2>/dev/null)
+    remote_sha=$(git -C "$subdir" rev-parse --verify -q "refs/remotes/origin/$branch^{commit}" 2>/dev/null)
     [[ -z "$local_sha" || -z "$remote_sha" ]] && continue
     [[ "$local_sha" == "$remote_sha" ]] && continue
+
+    read -r _ behind < <(git -C "$subdir" rev-list --left-right --count "HEAD...origin/$branch" 2>/dev/null)
+    [[ -z "$behind" || "$behind" == "0" ]] && continue
 
     # Print header once before the first result
     if [[ "$has_update" == "0" ]]; then
       echo -e "\033[2m[submodule check] $rel_root\033[0m"
     fi
 
-    local behind
-    behind=$(git -C "$subdir" rev-list --count "HEAD..origin/$branch" 2>/dev/null)
-    behind="${behind:-?}"
     echo -e "  \033[33m[submodule]\033[0m $path  \033[1m${behind} commit(s)\033[0m behind origin/$branch"
     has_update=1
   done < <(_submodule_list "$root")
