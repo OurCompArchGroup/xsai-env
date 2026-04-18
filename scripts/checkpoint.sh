@@ -3,9 +3,19 @@
 # checkpoint.sh — SimPoint-based checkpoint generation for XSAI workloads
 #
 # Three-phase workflow:
-#   1. profile   — Run QEMU with the profiling plugin to collect BBV data
-#   2. cluster   — Run SimPoint clustering on the BBV data
+#   1. profile    — Run QEMU with the profiling plugin to collect BBV data
+#   2. cluster    — Run SimPoint clustering on the BBV data
 #   3. checkpoint — Re-run QEMU in SimpointCheckpoint mode to dump checkpoints
+#
+# Common repo usage patterns:
+#   - Fast single-slice path:
+#       use no_simpoint + do_checkpoint, typically with small CPT_INTERVAL=100.
+#       This usually emits a single checkpoint .zstd.
+#   - SimPoint sampling path:
+#       do_profile + do_cluster + do_checkpoint, for example with
+#       CPT_INTERVAL=100000 and SIMPOINT_MAX_K=30.
+#       This can produce multiple representative checkpoint slices that can be
+#       replayed in parallel on emu/NEMU for hardware-oriented analysis.
 #
 # Usage:
 #   ./scripts/checkpoint.sh [profile|cluster|checkpoint|all] [OPTIONS]
@@ -14,12 +24,13 @@
 #   XS_PROJECT_ROOT       — repo root (auto-detected if sourced from root)
 #   WORKLOAD_NAME         — logical name for the workload        [default: app]
 #   MODEL_IMG             — path to the disk image (qcow2/raw)
-#   CHECKPOINT_CONFIG     — sub-dir / tag for this checkpoint run [default: simpoint]
-#   CPT_INTERVAL          — instructions per checkpoint slice     [default: 1000000]
-#   PROFILING_INTERVALS   — BBV interval size (instructions)      [default: 20000000]
-#   SIMPOINT_MAX_K        — max clusters for SimPoint             [default: 30]
+#   CHECKPOINT_CONFIG     — sub-dir / tag for this checkpoint run [default: build]
+#   CPT_INTERVAL          — instructions per checkpoint slice     [default: 100]
+#   PROFILING_INTERVALS   — BBV interval size (instructions)      [default: CPT_INTERVAL]
+#   SIMPOINT_MAX_K        — max clusters for SimPoint             [default: 10]
 #   MEMORY                — QEMU guest memory                     [default: 8G]
 #   SMP                   — QEMU SMP hart count                   [default: 1]
+#   CKPT_VIRTIO_SERIAL    — enable host_guest virtio-serial port  [default: 0]
 # =============================================================================
 set -euo pipefail
 
@@ -33,13 +44,14 @@ XS_PROJECT_ROOT="${XS_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 # Defaults — override via environment or command-line flags
 # ---------------------------------------------------------------------------
 WORKLOAD_NAME="${WORKLOAD_NAME:-app}"
-CHECKPOINT_CONFIG="${CHECKPOINT_CONFIG:-simpoint}"
-CPT_INTERVAL="${CPT_INTERVAL:-1000000}"
-PROFILING_INTERVALS="${PROFILING_INTERVALS:-20000000}"
-SIMPOINT_MAX_K="${SIMPOINT_MAX_K:-30}"
+CHECKPOINT_CONFIG="${CHECKPOINT_CONFIG:-build}"
+CPT_INTERVAL="${CPT_INTERVAL:-100}"
+PROFILING_INTERVALS="${PROFILING_INTERVALS:-$CPT_INTERVAL}"
+SIMPOINT_MAX_K="${SIMPOINT_MAX_K:-10}"
 MEMORY="${MEMORY:-8G}"
 SMP="${SMP:-1}"
 RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-}"  # optional: resume from an existing checkpoint before profiling
+CKPT_VIRTIO_SERIAL="${CKPT_VIRTIO_SERIAL:-0}"
 
 # Derived paths
 QEMU_HOME="${QEMU_HOME:-$XS_PROJECT_ROOT/qemu}"
@@ -130,6 +142,24 @@ build_drive_args() {
     fi
 }
 
+build_virtio_serial_args() {
+    VIRTIO_SERIAL_ARGS=()
+
+    case "$CKPT_VIRTIO_SERIAL" in
+        1|true|TRUE|yes|YES|on|ON)
+            if [[ -n "$MODEL_IMG" ]]; then
+                die "CKPT_VIRTIO_SERIAL=1 conflicts with MODEL_IMG on the nemu machine: only one virtio-mmio slot is available"
+            fi
+
+            VIRTIO_SERIAL_ARGS=(
+                -device virtio-serial-device
+                -device virtserialport,chardev=char0,id=port0,name=host_guest
+                -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off
+            )
+            ;;
+    esac
+}
+
 # ---------------------------------------------------------------------------
 # Phase 1 — Profiling
 # ---------------------------------------------------------------------------
@@ -147,6 +177,7 @@ do_profile() {
     log "  Intervals : $PROFILING_INTERVALS instructions"
 
     build_drive_args
+    build_virtio_serial_args
 
     # Build -M nemu option: only add checkpoint= when resuming from an existing snapshot
     local nemu_opts="nemu"
@@ -159,10 +190,8 @@ do_profile() {
         -nographic -m "$MEMORY" -smp "$SMP" \
         -cpu "$CPU_FLAGS" \
         -plugin "$PROFILING_PLUGIN,workload=$WORKLOAD_NAME,intervals=$PROFILING_INTERVALS,target=$out_dir" \
-        -device virtio-serial-device \
-        -device virtserialport,chardev=char0,id=port0,name=host_guest \
-        -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off \
         -serial mon:stdio \
+        "${VIRTIO_SERIAL_ARGS[@]}" \
         "${DRIVE_ARGS[@]}"
 
     log "✓ Profiling complete — BBV: $out_dir/simpoint_bbv.gz"
@@ -234,6 +263,7 @@ do_checkpoint() {
     log "  Disk image    : ${MODEL_IMG:-(none)}"
 
     build_drive_args
+    build_virtio_serial_args
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
@@ -241,10 +271,8 @@ do_checkpoint() {
         -M "nemu,simpoint-path=$cluster_dir,workload=$WORKLOAD_NAME,cpt-interval=$CPT_INTERVAL,output-base-dir=$CHECKPOINT_RESULT_ROOT,config-name=$CHECKPOINT_CONFIG,checkpoint-mode=SimpointCheckpoint" \
         -nographic -m "$MEMORY" -smp "$SMP" \
         -cpu "$CPU_FLAGS" \
-        -device virtio-serial-device \
-        -device virtserialport,chardev=char0,id=port0,name=host_guest \
-        -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off \
         -serial mon:stdio \
+        "${VIRTIO_SERIAL_ARGS[@]}" \
         "${DRIVE_ARGS[@]}"
 
     log "✓ Checkpoint dump complete"
@@ -274,6 +302,7 @@ do_uniform() {
     log "  Disk image    : ${MODEL_IMG:-(none)}"
 
     build_drive_args
+    build_virtio_serial_args
 
     "$QEMU_BIN" \
         -bios "$PAYLOAD" \
@@ -281,10 +310,8 @@ do_uniform() {
         -M "nemu,workload=$WORKLOAD_NAME,cpt-interval=$CPT_INTERVAL,output-base-dir=$CHECKPOINT_RESULT_ROOT,config-name=$CHECKPOINT_CONFIG,checkpoint-mode=UniformCheckpoint" \
         -nographic -m "$MEMORY" -smp "$SMP" \
         -cpu "$CPU_FLAGS" \
-        -device virtio-serial-device \
-        -device virtserialport,chardev=char0,id=port0,name=host_guest \
-        -chardev socket,id=char0,path=/tmp/virtio-serial-ckpt.sock,server=on,wait=off \
         -serial mon:stdio \
+        "${VIRTIO_SERIAL_ARGS[@]}" \
         "${DRIVE_ARGS[@]}"
 
     log "✓ Uniform checkpoint dump complete"
@@ -313,12 +340,12 @@ case "$PHASE" in
         ;;
     *)
         echo "Usage: $0 [profile|cluster|checkpoint|uniform|all] [--workload NAME] [--img PATH] ..."
-        echo "       --config NAME       checkpoint config tag  (default: simpoint)"
+        echo "       --config NAME       checkpoint config tag  (default: build)"
         echo "       --resume PATH       resume profiling from an existing checkpoint file"
         echo "                           (omit for cold-start profiling)"
-        echo "       --cpt-interval N    instructions per slice (default: 1000000)"
-        echo "       --intervals N       BBV interval size      (default: 20000000)"
-        echo "       --max-k N           SimPoint max clusters  (default: 30)"
+        echo "       --cpt-interval N    instructions per slice (default: 100)"
+        echo "       --intervals N       BBV interval size      (default: CPT_INTERVAL)"
+        echo "       --max-k N           SimPoint max clusters  (default: 10)"
         echo "       --memory SIZE       QEMU memory            (default: 8G)"
         echo "       --smp N             QEMU SMP count         (default: 1)"
         echo "       --payload PATH      GCPT binary path"
