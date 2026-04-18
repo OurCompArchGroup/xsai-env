@@ -18,6 +18,23 @@ Use this skill when you need to:
 - Run the generated binary with `qemu-riscv64` before full rootfs boot validation
 - Verify that the rootfs boot flow can see and execute the new binary
 
+The current repo's key smoke-test apps are:
+- `firmware/riscv-rootfs/apps/hello_xsai/`
+- `firmware/riscv-rootfs/apps/gemm_precomp/`
+
+Keep those paths in mind when editing shared rootfs boot logic.
+
+## Common modified files
+
+The most common integration files are:
+
+- `firmware/riscv-rootfs/Makefile`
+- `firmware/riscv-rootfs/rootfsimg/initramfs-disk-xsai.txt`
+- `firmware/riscv-rootfs/rootfsimg/init-disk-xsai.sh`
+- `firmware/riscv-rootfs/apps/hello_xsai/`
+- `firmware/riscv-rootfs/apps/gemm_precomp/`
+- `firmware/riscv-rootfs/apps/llama.cpp/`
+
 ## Integration workflow
 
 ### 1. Confirm the app exists
@@ -38,6 +55,8 @@ APPS = hello_xsai after_workload busybox before_workload trap qemu_trap dtc lkvm
 ```
 
 This ensures `make firmware` descends into the app directory and runs its `install` target.
+
+The current repo already uses this layer to build important smoke-test apps such as `hello_xsai`, `gemm_precomp`, and `llama.cpp`.
 
 You can also build a single app directly during development:
 
@@ -64,6 +83,8 @@ file /bin/after_workload ${RISCV_ROOTFS_HOME}/rootfsimg/build/after_workload 755
 ```
 
 Place the entry near the other user binaries in `/bin`.
+
+The current rootfs manifest already includes the main smoke and inference binaries such as `hello_xsai`, `gemm_precomp`, `llama-simple-xsai`, and `llama-bench`.
 
 ## 4. Invoke the app from init if required
 
@@ -106,6 +127,8 @@ Follow the existing script style:
 - Use `|| true` when the boot flow should continue even if the app fails
 - If return-code chaining is needed, use an `if cmd; then ... else ... fi` pattern so exit codes are preserved safely under `set -e`
 
+The current init flow is not a generic shell-only launcher. It is also where the repo wires together the smoke path and the `llama.cpp` benchmarking path.
+
 ## 5. Test the app directly before full boot
 
 Before validating the whole rootfs, you can run the generated binary directly with `qemu-riscv64`.
@@ -125,12 +148,16 @@ $(QEMU_HOME)/build/qemu-riscv64 -cpu rv64,v=true,vlen=128,h=false,zvfh=true,zvfh
 
 Use this path when you want to validate the binary itself without involving initramfs boot.
 
+If the binary is dynamically linked, make sure the runtime sysroot is available through `QEMU_LD_PREFIX`.
+
 ## 6. Verify the full path is closed
 
 After editing, verify all three layers are aligned:
 - `firmware/riscv-rootfs/Makefile` builds the app
 - `firmware/riscv-rootfs/rootfsimg/initramfs-disk-xsai.txt` packs the binary
 - `firmware/riscv-rootfs/rootfsimg/init-disk-xsai.sh` runs it if needed
+
+For the current repo, that three-layer closure is required for `hello_xsai` and `gemm_precomp` smoke testing as well.
 
 Then rebuild and test.
 
@@ -147,7 +174,26 @@ make -C firmware/riscv-rootfs/apps/after_workload install
 $(QEMU_HOME)/build/qemu-riscv64 -cpu rv64,v=true,vlen=128,h=false,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32 firmware/riscv-rootfs/rootfsimg/build/after_workload
 ```
 
-For boot-flow verification, run the rootfs path and inspect logs for the expected launch message.
+For boot-flow verification, prefer:
+
+```bash
+make firmware
+make run-qemu
+```
+
+Inspect the boot log for the expected launch message and exit behavior.
+
+## Default validation ladder
+
+For software changes, the default repo order is:
+
+1. `make run-qemu`
+2. `make run-nemu`
+3. `make ckpt`
+4. `make run-nemu PAYLOAD=firmware/checkpoints/build/app/1/_1_1.zstd`
+5. `make run-emu PAYLOAD=firmware/checkpoints/build/app/1/_1_1.zstd`
+
+Use the checkpoint payload above as the default example under the current defaults. If `WORKLOAD_NAME` or `CHECKPOINT_CONFIG` changes, adjust it.
 
 ## Common checks
 
@@ -197,3 +243,12 @@ $(QEMU_HOME)/build/qemu-riscv64 -cpu rv64,v=true,vlen=128,h=false,zvfh=true,zvfh
 - When chaining workloads, pass explicit exit codes instead of relying on shell-global `$?` across unrelated commands.
 - Prefer minimal edits near existing `hello_xsai` or related workload entries so the boot order stays clear.
 - Rebuild the firmware after making rootfs integration changes before testing runtime behavior.
+- Treat build inclusion, initramfs packaging, and init-script invocation as one integrated change.
+
+## Easy mistakes
+
+- Updating the app itself but forgetting `APPS` in `firmware/riscv-rootfs/Makefile`
+- Updating packaging but not boot invocation, or boot invocation but not packaging
+- Testing only with direct `qemu-riscv64` and assuming the rootfs boot path is also correct
+- Starting with RTL before QEMU/NEMU and checkpoint-based validation
+- Forgetting that `hello_xsai`, `gemm_precomp`, and `llama.cpp` all share the same rootfs integration layers
