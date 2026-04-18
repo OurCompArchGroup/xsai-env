@@ -38,6 +38,7 @@
 	url = https://github.com/riscv-software-src/opensbi.git
 	branch = master
 	update = none
+	ignore = untracked
 [submodule "firmware/riscv-rootfs"]
 	path = firmware/riscv-rootfs
 	url = https://github.com/OurCompArchGroup/riscv-rootfs.git
