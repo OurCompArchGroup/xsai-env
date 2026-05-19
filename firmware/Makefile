@@ -33,8 +33,17 @@ XSAI_COMPATIBLE ?= xiangshan,ai-nemu-board xiangshan,nemu-board
 XSAI_MODEL ?= XiangShan AI
 XSAI_EXTRA_ISA_EXTENSIONS ?= zame zammai8i32
 XSAI_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan_ai.dtb
-INITRAMFS_COMMON_SOURCES := $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-base.txt $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-libs.txt
-INITRAMFS_SOURCE ?= $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-disk-xsai.txt
+INITRAMFS_BASE_SOURCES := $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-base.txt \
+                          $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-libs.txt \
+                          $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-disk-xsai-base.txt
+INITRAMFS_WORKLOAD_SOURCE ?= $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-disk-xsai-workload.txt
+GEN_INIT_CPIO := $(RISCV_LINUX_HOME)/usr/gen_init_cpio
+INITRAMFS_BUILD_DIR := $(WORK_DIR)/build
+INITRAMFS_CPIO := $(INITRAMFS_BUILD_DIR)/initramfs.cpio
+INITRAMFS_BASE_CPIO := $(INITRAMFS_BUILD_DIR)/initramfs-base.cpio
+INITRAMFS_WORKLOAD_CPIO := $(INITRAMFS_BUILD_DIR)/initramfs-workload.cpio
+COMBINED_PAYLOAD := $(INITRAMFS_BUILD_DIR)/combined_payload.bin
+INITRAMFS_ALIGN := 1048576
 # Linux kernel version
 LINUX_VERSION := 6.18
 LINUX_TARBALL := linux-$(LINUX_VERSION).tar.xz
@@ -106,15 +115,9 @@ export XSAI_INIT_MODE XSAI_WORKLOAD XSAI_AUTO_EXIT XSAI_DROP_SHELL
 export XSAI_RUN_AFTER_WORKLOAD XSAI_DUMP_THP XSAI_TRACE_WORKLOAD
 export XSAI_GGML_AME_LOG XSAI_GGML_AME_PACKED_Q8
 
-.PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-dtb build-dtb-std build-dtb-xsai build-opensbi build-opensbi-qemu build-opensbi-nemu _build-opensbi build-gcpt build-gcpt-qemu build-gcpt-nemu _build-gcpt build-gcpt-restore build-gcpt-clean clean distclean help
+.PHONY: all check-env download-linux setup-submodules init init-force build-rootfs build-linux build-initramfs-base build-initramfs build-combined-payload build-dtb build-dtb-std build-dtb-xsai build-opensbi build-opensbi-qemu build-opensbi-nemu _build-opensbi build-gcpt build-gcpt-qemu build-gcpt-nemu _build-gcpt build-gcpt-restore build-gcpt-clean clean distclean help
 
-all:
-	@$(MAKE) build-rootfs 
-	@$(MAKE) build-linux
-	@$(MAKE) build-dtb
-	@$(MAKE) build-gcpt-qemu
-	@$(MAKE) build-gcpt-nemu
-	@$(MAKE) build-gcpt-restore
+all: build-dtb build-gcpt-qemu build-gcpt-nemu build-gcpt-restore
 	@echo "✓ Build complete!"
 	@echo "  Linux Image: $(LINUX_IMAGE)"
 	@echo "  DTB: $(DTB_FILE)"
@@ -147,8 +150,8 @@ help:
 	@echo "                     SHOW_LINUX_BUILD_LOG=1 to stream full kernel build logs"
 	@echo "                     LINUX_MAKE_JOBS=$(LINUX_MAKE_JOBS)"
 	@echo "                     FORCE_LINUX_CONFIG=1 to rerun defconfig/olddefconfig/prepare"
-	@echo "                     INITRAMFS_SOURCE=$(INITRAMFS_SOURCE)"
-	@echo "                     INITRAMFS_COMMON_SOURCES=$(INITRAMFS_COMMON_SOURCES)"
+# 	@echo "                     INITRAMFS_SOURCE=$(INITRAMFS_SOURCE)"
+# 	@echo "                     INITRAMFS_COMMON_SOURCES=$(INITRAMFS_COMMON_SOURCES)"
 	@echo "  build-dtb        - Build XSAI device tree blob (default)"
 	@echo "  build-dtb-std    - Build standard XiangShan device tree blob"
 	@echo "                     Optional: DIRECT_MAP_MEM_START=0x100000000 DIRECT_MAP_MEM_SIZE=0x180000000"
@@ -241,8 +244,7 @@ build-linux:
 	@cd $(RISCV_LINUX_HOME) && \
 		{ \
 			echo "defconfig=$$(sha256sum "$(WORKLOAD_BUILD_ENV_HOME)/configs/xiangshan_defconfig" | awk '{print $$1}')"; \
-			echo "INITRAMFS_COMMON_SOURCES=$(INITRAMFS_COMMON_SOURCES)"; \
-			echo "INITRAMFS_SOURCE=$(INITRAMFS_SOURCE)"; \
+			echo "INITRAMFS_SOURCE=external"; \
 			echo "CONFIG_BLOCK=y"; \
 			echo "CONFIG_BLK_DEV=y"; \
 			echo "CONFIG_VIRTIO_MENU=y"; \
@@ -319,7 +321,8 @@ build-linux:
 			./scripts/config --enable CONFIG_DEVMEM && \
 			./scripts/config --disable CONFIG_STRICT_DEVMEM && \
 			./scripts/config --disable CONFIG_IO_STRICT_DEVMEM && \
-			./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "$(INITRAMFS_COMMON_SOURCES) $(INITRAMFS_SOURCE)" && \
+			./scripts/config --set-str CONFIG_INITRAMFS_SOURCE "" && \
+			./scripts/config --enable CONFIG_BLK_DEV_INITRD && \
 			./scripts/config --disable CONFIG_FLATMEM_MANUAL && \
 			./scripts/config --enable CONFIG_SPARSEMEM_MANUAL && \
 			./scripts/config --enable CONFIG_SPARSEMEM_VMEMMAP && \
@@ -357,6 +360,46 @@ build-linux:
 	fi
 	@echo "✓ Linux kernel built: $(LINUX_IMAGE)"
 
+$(INITRAMFS_BASE_CPIO): $(INITRAMFS_BASE_SOURCES) | build-rootfs
+	@echo "Building base initramfs..."
+	@mkdir -p $(INITRAMFS_BUILD_DIR)
+	@if [ ! -f "$(GEN_INIT_CPIO)" ]; then \
+		echo "  Compiling gen_init_cpio..."; \
+		cd $(RISCV_LINUX_HOME) && $(MAKE) usr/gen_init_cpio; \
+	fi
+	@cat $(INITRAMFS_BASE_SOURCES) | $(GEN_INIT_CPIO) -o $@ -
+	@echo "  Size: $$(stat -c%s $@) bytes"
+	@echo "✓ Initramfs-base built: $@"
+
+build-initramfs-base: $(INITRAMFS_BASE_CPIO)
+
+build-initramfs: $(INITRAMFS_BASE_CPIO) build-rootfs
+	@echo "Building initramfs..."
+	@mkdir -p $(INITRAMFS_BUILD_DIR)
+	@if [ ! -f "$(GEN_INIT_CPIO)" ]; then \
+		echo "  Compiling gen_init_cpio..."; \
+		cd $(RISCV_LINUX_HOME) && $(MAKE) usr/gen_init_cpio; \
+	fi
+	@cat $(INITRAMFS_WORKLOAD_SOURCE) | $(GEN_INIT_CPIO) -o $(INITRAMFS_WORKLOAD_CPIO) -
+	@cat $(INITRAMFS_BASE_CPIO) $(INITRAMFS_WORKLOAD_CPIO) > $(INITRAMFS_CPIO)
+	@echo "  Size: $$(stat -c%s $(INITRAMFS_CPIO)) bytes"
+	@echo "✓ Initramfs built: $(INITRAMFS_CPIO)"
+
+build-combined-payload: $(COMBINED_PAYLOAD)
+
+$(COMBINED_PAYLOAD): $(LINUX_IMAGE) $(INITRAMFS_CPIO)
+	@echo "Building combined payload (kernel + initramfs)..."
+	@mkdir -p $(INITRAMFS_BUILD_DIR)
+	@KERNEL_SIZE=$$(stat -c%s $(LINUX_IMAGE)) && \
+	 ALIGN=$(INITRAMFS_ALIGN) && \
+	 ALIGNED_KERNEL=$$(python3 -c "ks=$$KERNEL_SIZE; a=$$ALIGN; print(((ks+a-1)//a)*a)") && \
+	 INITRD_GAP=$$((2 * 1024 * 1024)) && \
+	 PAD_SIZE=$$(($$ALIGNED_KERNEL + $$INITRD_GAP - $$KERNEL_SIZE)) && \
+	 cp $(LINUX_IMAGE) $@ && \
+	 head -c $$PAD_SIZE /dev/zero >> $@ && \
+	 cat $(INITRAMFS_CPIO) >> $@ && \
+	 echo "✓ Combined payload: $$(stat -c%s $@) bytes"
+
 build-dtb-std: setup-submodules
 	@echo "Building device tree blob..."
 	@cd $(WORKLOAD_BUILD_ENV_HOME)/dts && \
@@ -373,10 +416,15 @@ build-dtb-std: setup-submodules
 build-dtb: build-dtb-xsai
 	@echo "✓ Default DTB built for XSAI: $(XSAI_DTB_FILE)"
 
-build-dtb-xsai: setup-submodules
+build-dtb-xsai: setup-submodules build-linux build-initramfs
 	@echo "Building XSAI device tree blob..."
 	@echo "$$(date '+[fw %F %T %z] START build-dtb-xsai')"
-	@cd $(WORKLOAD_BUILD_ENV_HOME)/dts && \
+	@KERNEL_SIZE=$$(stat -c%s $(LINUX_IMAGE)) && \
+	 CPIO_SIZE=$$(stat -c%s $(INITRAMFS_CPIO)) && \
+	 ALIGNED_KERNEL=$$(python3 -c "ks=$$KERNEL_SIZE; a=$(INITRAMFS_ALIGN); print(((ks+a-1)//a)*a)") && \
+	 INITRD_START=$$(python3 -c "print(hex(0x80200000 + $$ALIGNED_KERNEL + 2*1024*1024))") && \
+	 INITRD_END=$$(python3 -c "print(hex(0x80200000 + $$ALIGNED_KERNEL + 2*1024*1024 + $$CPIO_SIZE))") && \
+	 cd $(WORKLOAD_BUILD_ENV_HOME)/dts && \
 		mkdir -p build && \
 		python3 DTSGen.py \
 			--compatible $(XSAI_COMPATIBLE) \
@@ -386,10 +434,12 @@ build-dtb-xsai: setup-submodules
 			--rva-profile rva23u64 \
 			--isa-extensions $(XSAI_EXTRA_ISA_EXTENSIONS) \
 			--direct-map-mem $(XSAI_DIRECT_MAP_MEM_START) $(XSAI_DIRECT_MAP_MEM_SIZE) \
-			--bootargs "console=hvc0 earlycon=sbi" \
+			--bootargs "console=hvc0 earlycon=sbi rdinit=/init" \
 			--memory-size $(XSAI_MEMORY_SIZE) \
 			--mmu-type riscv,sv48 \
-			--reserve-mem $(XSAI_RAM_BASE) $(XSAI_BOOT_RESERVE_SIZE) | \
+			--reserve-mem $(XSAI_RAM_BASE) $(XSAI_BOOT_RESERVE_SIZE) \
+			--initrd-start $$INITRD_START \
+			--initrd-end $$INITRD_END | \
 		dtc -O dtb -o build/xiangshan_ai.dtb - || exit $$?
 	@dtc -I dtb -O dts -o $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan_ai.dts \
 		$(XSAI_DTB_FILE) || exit $$?
@@ -405,15 +455,17 @@ build-dtb-xsai: setup-submodules
 build-opensbi: build-opensbi-qemu
 	@echo "✓ Default OpenSBI payload built for QEMU: $(OPENSBI_QEMU_PAYLOAD)"
 
-build-opensbi-qemu:
+build-opensbi-qemu: build-combined-payload
 	@$(MAKE) _build-opensbi \
+		OPENSBI_FW_PAYLOAD=$(COMBINED_PAYLOAD) \
 		OPENSBI_BUILD_ROOT=$(OPENSBI_QEMU_BUILD_ROOT) \
 		OPENSBI_PAYLOAD_OUT=$(OPENSBI_QEMU_PAYLOAD) \
 		OPENSBI_EMBED_DTB=0 \
 		OPENSBI_BUILD_LOG=$(OPENSBI_QEMU_BUILD_LOG)
 
-build-opensbi-nemu:
+build-opensbi-nemu: build-combined-payload
 	@$(MAKE) _build-opensbi \
+		OPENSBI_FW_PAYLOAD=$(COMBINED_PAYLOAD) \
 		OPENSBI_BUILD_ROOT=$(OPENSBI_NEMU_BUILD_ROOT) \
 		OPENSBI_PAYLOAD_OUT=$(OPENSBI_NEMU_PAYLOAD) \
 		OPENSBI_EMBED_DTB=1 \
@@ -435,7 +487,7 @@ _build-opensbi:
 		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout firmware/opensbi; \
 		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout --recursive firmware/opensbi; \
 	fi
-	@FW_SIZE=$$(stat -c%s $(LINUX_IMAGE)) && \
+	@FW_SIZE=$$(stat -c%s $(OPENSBI_FW_PAYLOAD)) && \
 	 FW_FDT_ADDR=$$(python3 -c \
 	   "sz=$$FW_SIZE; print(hex(((sz+0x800000+0xfffff)//0x100000)*0x100000+0x80000000))") && \
 	 echo "  Image size     : $$FW_SIZE bytes" && \
@@ -447,7 +499,7 @@ _build-opensbi:
 	 if [ "$(SHOW_OPENSBI_BUILD_LOG)" = "1" ]; then \
 		echo "$$(date '+[fw %F %T %z] START build-opensbi jobs=$(OPENSBI_MAKE_JOBS) root=$(OPENSBI_BUILD_ROOT)')"; \
 		cd $(OPENSBI) && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
-			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
+			FW_PAYLOAD_PATH=$(OPENSBI_FW_PAYLOAD) \
 			FW_PAYLOAD_OFFSET=0x100000 \
 			FW_PAYLOAD_FDT_ADDR=$$FW_FDT_ADDR \
 			"$${EXTRA_FW_ARGS[@]}" \
@@ -456,7 +508,7 @@ _build-opensbi:
 	 else \
 		( echo "$$(date '+[fw %F %T %z] START build-opensbi jobs=$(OPENSBI_MAKE_JOBS) root=$(OPENSBI_BUILD_ROOT)')" && \
 		  cd $(OPENSBI) && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
-			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
+			FW_PAYLOAD_PATH=$(OPENSBI_FW_PAYLOAD) \
 			FW_PAYLOAD_OFFSET=0x100000 \
 			FW_PAYLOAD_FDT_ADDR=$$FW_FDT_ADDR \
 			"$${EXTRA_FW_ARGS[@]}" \
@@ -562,6 +614,7 @@ clean:
 	@[ -d "$(GCPT_RESTORE_HOME)" ] && cd $(GCPT_RESTORE_HOME) && $(MAKE) clean || true
 	@rm -rf $(GCPT_RESTORE_BUILD_ROOT)
 	@[ -d "$(RISCV_ROOTFS_HOME)" ] && cd $(RISCV_ROOTFS_HOME) && $(MAKE) clean || true
+	@rm -rf "$(INITRAMFS_BUILD_DIR)" "$(WORKLOAD_BUILD_ENV_HOME)/dts/build"
 	@echo "✓ Clean complete"
 
 distclean: clean
