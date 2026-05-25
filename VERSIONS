@@ -6,15 +6,15 @@
 # Format:
 #   <submodule-path>  <commit>  <date>  <branch/tag>  <remote-url>
 
-# Generated: 2026-05-09 08:33 UTC
+# Generated: 2026-05-25 03:19 UTC
 
 # COMPONENT                     COMMIT                                      DATE                       BRANCH/TAG                      URL
 # ---------                     ------                                      ----                       ----------                      ---
 DRAMsim3                        1d2a9bf6da8e050d975ef2669c42faa93943f489    2024-09-05 14:24:16 +0800  (detached)                      git@github.com:OpenXiangShan/DRAMsim3.git
-NEMU                            a587e097a0bd5de9d1408ac5f1b426f2968de30d    2026-04-16 14:28:46 +0800  feat-matrix                     git@github.com:OpenXiangShan/NEMU.git
-XSAI                            1a71bcaf72533fee3f36f250719e0023da514427    2026-03-26 14:55:41 +0800  (detached)                      git@github.com:OpenXiangShan/XSAI
+NEMU                            c77a1844783d7ca105a41adb5612653dc00ceefc    2026-05-18 16:44:06 +0800  (detached)                      git@github.com:OpenXiangShan/NEMU.git
+XSAI                            b8353204ea0a4fa74dc5e254b8806a39a6da37bc    2026-05-24 16:20:54 +0800  (detached)                      git@github.com:OpenXiangShan/XSAI
 docs/CUTE-Design-Doc            4f25de50693e34e76b6d6d0b00c01e4f1c2f7b4d    2026-04-12 08:09:29 +0000  master                          git@github.com:OpenCUTE/CUTE-Design-Doc.git
-firmware/LibCheckpoint          f8c33689cdf11aa2f8f25dbf99075dca148ecd44    2024-09-05 16:28:07 +0800  (detached)                      git@github.com:OpenXiangShan/LibCheckpoint
+firmware/LibCheckpoint          2115c400af664ba06c57114db39a777ee7e5f1d0    2025-11-18 12:36:59 +0800  (detached)                      git@github.com:OpenXiangShan/LibCheckpoint
 firmware/gcpt_restore           5f439fc21f8a9480770cae3d081065526905bd1e    2026-04-20 13:23:09 +0800  main                            git@github.com:OpenXiangShan/LibCheckpointAlpha.git
 firmware/nemu_board             a67046b84767ccd6e80f3caa148ace00e418fa58    2026-04-18 11:53:06 +0800  master                          git@github.com:OpenXiangShan/nemu_board.git
 firmware/opensbi                74434f255873d74e56cc50aa762d1caf24c099f8    2026-01-08 14:18:14 +0530  v1.8.1                          git@github.com:riscv-software-src/opensbi.git
