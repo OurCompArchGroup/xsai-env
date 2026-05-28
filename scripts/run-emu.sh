@@ -28,6 +28,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 XS_PROJECT_ROOT="${XS_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 NOOP_HOME="${NOOP_HOME:-$XS_PROJECT_ROOT/XSAI}"
+EMU_STACK_KB="${EMU_STACK_KB:-65536}"
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -81,6 +82,12 @@ done
 [[ -n "$PAYLOAD" ]] || { echo "Usage: $0 [--log] [--diff] <payload>" >&2; exit 1; }
 [[ -f "$PAYLOAD" ]] || { echo "Payload not found: $PAYLOAD" >&2; exit 1; }
 [[ -x "$NOOP_HOME/build/emu" ]] || { echo "emu not found: $NOOP_HOME/build/emu" >&2; exit 1; }
+
+if [[ -n "$EMU_STACK_KB" ]]; then
+    if ! ulimit -s "$EMU_STACK_KB" 2>/dev/null; then
+        echo "[run-emu] warning: failed to set stack size to ${EMU_STACK_KB}KB" >&2
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Derive a clean program name from the payload path
