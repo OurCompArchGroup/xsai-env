@@ -108,7 +108,6 @@ xsai_env_init() {
   fi
 
   xsai_env_prepend_path "$XS_PROJECT_ROOT/local/bin"
-  xsai_env_prepend_path "$LLVM_HOME/bin"
   if [[ -n "${RISCV:-}" ]]; then
     xsai_env_prepend_path "$RISCV/bin"
   fi
