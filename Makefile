@@ -1,4 +1,4 @@
-.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu run-fpga fpga-reset firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init _ensure_fpga_payload docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix loadtestcase loadtransposecase qemu run-qemu run-fpga fpga-reset firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init _ensure_fpga_payload docker-nemu-image nemu-matrix-ref-so-docker
 
 SHELL := /bin/bash
 
@@ -109,6 +109,8 @@ help:
 	@echo "  make nemu-matrix-ref-so-docker - Build riscv64-matrix-xs-ref shared library in Docker"
 	@echo "  make xsai        - Build XSAI RTL simulation (Verilator)"
 	@echo "  make test-matrix - Run matrix simple test"
+	@echo "  make loadtestcase - Build/run AME load-only testcase"
+	@echo "  make loadtransposecase - Build/run AME transpose load-only testcase"
 	@echo "  make update      - Update submodules to latest"
 	@echo "  make versions    - Regenerate VERSIONS file from current submodule state"
 	@echo "  make pldm        - Build XSAI verilog, package it, then restore build/"
@@ -205,6 +207,20 @@ emu-verilator: _ensure_xsai_init
 	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 xsai: emu-verilator
+
+AME_LOAD_CASE_DIR := $(AM_HOME)/tests/ame_only_load
+AME_LOAD_TRANSPOSE_CASE_DIR := $(AM_HOME)/tests/ame_only_load_transpose
+AME_TEST_LOG ?= 1
+
+loadtestcase:
+	$(MAKE) -C $(AME_LOAD_CASE_DIR) clean
+	$(MAKE) -C $(AME_LOAD_CASE_DIR) TOOLCHAIN=LLVM
+	$(MAKE) run-emu DIFF=$(DIFF) LOG=$(AME_TEST_LOG) PAYLOAD="nexus-am/tests/ame_only_load/build/ametest-riscv64-xs.bin"
+
+loadtransposecase:
+	$(MAKE) -C $(AME_LOAD_TRANSPOSE_CASE_DIR) clean
+	$(MAKE) -C $(AME_LOAD_TRANSPOSE_CASE_DIR) TOOLCHAIN=LLVM
+	$(MAKE) run-emu DIFF=$(DIFF) LOG=$(AME_TEST_LOG) PAYLOAD="nexus-am/tests/ame_only_load_transpose/build/ametest-riscv64-xs.bin"
 
 emu-gsim:
 	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 EMU_TRACE="fst" GSIM=1 CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
