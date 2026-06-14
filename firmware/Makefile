@@ -435,6 +435,8 @@ _build-opensbi:
 		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout firmware/opensbi; \
 		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout --recursive firmware/opensbi; \
 	fi
+	@echo "Applying OpenSBI patches (if needed)..."
+	@bash $(WORK_DIR)/opensbi-patches/apply-opensbi-patches.sh "$(OPENSBI)"
 	@FW_SIZE=$$(stat -c%s $(LINUX_IMAGE)) && \
 	 FW_FDT_ADDR=$$(python3 -c \
 	   "sz=$$FW_SIZE; print(hex(((sz+0x800000+0xfffff)//0x100000)*0x100000+0x80000000))") && \

@@ -3,19 +3,19 @@ set -euo pipefail
 shopt -s nullglob
 
 if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <linux-source-dir>"
+  echo "Usage: $0 <opensbi-source-dir>"
   exit 1
 fi
 
-LINUX_DIR="$1"
+OPENSBI_DIR="$1"
 PATCH_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-if [[ ! -d "$LINUX_DIR" ]]; then
-  echo "Error: linux source dir not found: $LINUX_DIR"
+if [[ ! -d "$OPENSBI_DIR" ]]; then
+  echo "Error: OpenSBI source dir not found: $OPENSBI_DIR"
   exit 1
 fi
 
-cd "$LINUX_DIR"
+cd "$OPENSBI_DIR"
 
 PATCH_FILES=("$PATCH_DIR"/[0-9][0-9][0-9][0-9]-*.patch)
 if [[ ${#PATCH_FILES[@]} -eq 0 ]]; then
@@ -28,15 +28,9 @@ declare -a TO_APPLY=()
 is_semantically_applied() {
   local patch_file="$1"
   case "$(basename "$patch_file")" in
-    0001-riscv-matrix-first-use-support.patch)
-      [[ -f arch/riscv/include/asm/matrix.h ]] && \
-      grep -q '^#define SR_MS' arch/riscv/include/asm/csr.h && \
-      grep -q 'riscv_m_first_use_handler' arch/riscv/include/asm/matrix.h && \
-      grep -q 'matrix\.o' arch/riscv/kernel/Makefile && \
-      grep -q 'riscv_m_first_use_handler' arch/riscv/kernel/traps.c
-      ;;
-    0003-riscv-fix-system-csr-immediate-mask-width.patch)
-      grep -q 'RVG_SYSTEM_CSR_MASK[[:space:]]*GENMASK(11, 0)' arch/riscv/include/asm/insn.h
+    0001-lib-sbi-allow-xsai-ame-custom-csrs.patch)
+      grep -q 'mstateen_val |= SMSTATEEN0_CS;' lib/sbi/sbi_hart.c && \
+      grep -q 'csr_write(CSR_SSTATEEN0, SMSTATEEN0_CS);' lib/sbi/sbi_hart.c
       ;;
     *)
       return 1
