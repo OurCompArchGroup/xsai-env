@@ -1,0 +1,19 @@
+--- a/lib/sbi/sbi_hart.c
++++ b/lib/sbi/sbi_hart.c
+@@ -89,6 +89,7 @@ static void mstatus_init(struct sbi_scratch *scratch)
+ 	if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SMSTATEEN)) {
+ 		mstateen_val = 0;
+ 		mstateen_val |= SMSTATEEN_STATEN;
++		mstateen_val |= SMSTATEEN0_CS;
+ 		mstateen_val |= SMSTATEEN0_CONTEXT;
+ 		mstateen_val |= SMSTATEEN0_HSENVCFG;
+ 
+@@ -121,7 +122,7 @@ static void mstatus_init(struct sbi_scratch *scratch)
+ 
+ 	if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SSSTATEEN)) {
+ 		if (misa_extension('S')) {
+-			csr_write(CSR_SSTATEEN0, 0);
++			csr_write(CSR_SSTATEEN0, SMSTATEEN0_CS);
+ 			csr_write(CSR_SSTATEEN1, 0);
+ 			csr_write(CSR_SSTATEEN2, 0);
+ 			csr_write(CSR_SSTATEEN3, 0);
