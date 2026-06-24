@@ -22,6 +22,7 @@ export WORKLOAD_BUILD_ENV_HOME := $(WORK_DIR)/nemu_board
 export GCPT_HOME ?= $(WORK_DIR)/LibCheckpoint
 export GCPT_RESTORE_HOME ?= $(WORK_DIR)/gcpt_restore
 export PATH := $(RISCV)/bin:$(PATH)
+FIRMWARE_BUILD_DIR ?= $(XS_PROJECT_ROOT)/build/firmware
 
 -include $(RISCV_ROOTFS_HOME)/riscv-lib-paths.mk
 DIRECT_MAP_MEM_START ?=
@@ -44,8 +45,10 @@ LINUX_URL := https://cdn.kernel.org/pub/linux/kernel/v6.x/$(LINUX_TARBALL)
 LINUX_IMAGE := $(RISCV_LINUX_HOME)/arch/riscv/boot/Image
 STD_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan.dtb
 DTB_FILE ?= $(XSAI_DTB_FILE)
-OPENSBI_QEMU_BUILD_ROOT := $(OPENSBI)/build-qemu
-OPENSBI_NEMU_BUILD_ROOT := $(OPENSBI)/build-nemu
+OPENSBI_QEMU_BUILD_ROOT := $(FIRMWARE_BUILD_DIR)/opensbi-qemu-build
+OPENSBI_NEMU_BUILD_ROOT := $(FIRMWARE_BUILD_DIR)/opensbi-nemu-build
+OPENSBI_QEMU_PATCHED_SRC := $(FIRMWARE_BUILD_DIR)/opensbi-qemu-src
+OPENSBI_NEMU_PATCHED_SRC := $(FIRMWARE_BUILD_DIR)/opensbi-nemu-src
 OPENSBI_QEMU_PAYLOAD := $(OPENSBI_QEMU_BUILD_ROOT)/platform/generic/firmware/fw_payload.bin
 OPENSBI_NEMU_PAYLOAD := $(OPENSBI_NEMU_BUILD_ROOT)/platform/generic/firmware/fw_payload.bin
 OPENSBI_PAYLOAD ?= $(OPENSBI_QEMU_PAYLOAD)
@@ -408,6 +411,7 @@ build-opensbi: build-opensbi-qemu
 build-opensbi-qemu:
 	@$(MAKE) _build-opensbi \
 		OPENSBI_BUILD_ROOT=$(OPENSBI_QEMU_BUILD_ROOT) \
+		OPENSBI_PATCHED_SRC=$(OPENSBI_QEMU_PATCHED_SRC) \
 		OPENSBI_PAYLOAD_OUT=$(OPENSBI_QEMU_PAYLOAD) \
 		OPENSBI_EMBED_DTB=0 \
 		OPENSBI_BUILD_LOG=$(OPENSBI_QEMU_BUILD_LOG)
@@ -415,6 +419,7 @@ build-opensbi-qemu:
 build-opensbi-nemu:
 	@$(MAKE) _build-opensbi \
 		OPENSBI_BUILD_ROOT=$(OPENSBI_NEMU_BUILD_ROOT) \
+		OPENSBI_PATCHED_SRC=$(OPENSBI_NEMU_PATCHED_SRC) \
 		OPENSBI_PAYLOAD_OUT=$(OPENSBI_NEMU_PAYLOAD) \
 		OPENSBI_EMBED_DTB=1 \
 		OPENSBI_BUILD_LOG=$(OPENSBI_NEMU_BUILD_LOG)
@@ -435,20 +440,30 @@ _build-opensbi:
 		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout firmware/opensbi; \
 		git -C "$(XS_PROJECT_ROOT)" -c submodule.firmware/opensbi.update=checkout submodule update --init --checkout --recursive firmware/opensbi; \
 	fi
-	@echo "Applying OpenSBI patches (if needed)..."
-	@bash $(WORK_DIR)/opensbi-patches/apply-opensbi-patches.sh "$(OPENSBI)"
+	@if [ -z "$(OPENSBI_PATCHED_SRC)" ] || [ "$(OPENSBI_PATCHED_SRC)" = "/" ]; then \
+		echo "Invalid OpenSBI patched source path: $(OPENSBI_PATCHED_SRC)" >&2; \
+		exit 1; \
+	fi
+	@echo "Preparing patched OpenSBI source: $(OPENSBI_PATCHED_SRC)"
+	@rm -rf "$(OPENSBI_PATCHED_SRC)"
+	@mkdir -p "$(OPENSBI_PATCHED_SRC)"
+	@set -euo pipefail; git -C "$(OPENSBI)" archive HEAD | tar -C "$(OPENSBI_PATCHED_SRC)" -xf -
+	@echo "Applying OpenSBI patches to generated source..."
+	@bash $(WORK_DIR)/opensbi-patches/apply-opensbi-patches.sh "$(OPENSBI_PATCHED_SRC)"
 	@FW_SIZE=$$(stat -c%s $(LINUX_IMAGE)) && \
 	 FW_FDT_ADDR=$$(python3 -c \
 	   "sz=$$FW_SIZE; print(hex(((sz+0x800000+0xfffff)//0x100000)*0x100000+0x80000000))") && \
+	 OPENSBI_VERSION_GIT=$$(git -C "$(OPENSBI)" describe --always --tags 2>/dev/null || true) && \
 	 echo "  Image size     : $$FW_SIZE bytes" && \
 	 echo "  FW_PAYLOAD_FDT_ADDR: $$FW_FDT_ADDR" && \
 	 EXTRA_FW_ARGS=(); \
 	 if [ "$(OPENSBI_EMBED_DTB)" = "1" ]; then \
 	 	EXTRA_FW_ARGS+=(FW_FDT_PATH=$(DTB_FILE)); \
 	 fi; \
-	 if [ "$(SHOW_OPENSBI_BUILD_LOG)" = "1" ]; then \
+	if [ "$(SHOW_OPENSBI_BUILD_LOG)" = "1" ]; then \
 		echo "$$(date '+[fw %F %T %z] START build-opensbi jobs=$(OPENSBI_MAKE_JOBS) root=$(OPENSBI_BUILD_ROOT)')"; \
-		cd $(OPENSBI) && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
+		cd $(OPENSBI_PATCHED_SRC) && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
+			OPENSBI_VERSION_GIT="$$OPENSBI_VERSION_GIT" \
 			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
 			FW_PAYLOAD_OFFSET=0x100000 \
 			FW_PAYLOAD_FDT_ADDR=$$FW_FDT_ADDR \
@@ -457,7 +472,8 @@ _build-opensbi:
 		echo "$$(date '+[fw %F %T %z] END build-opensbi root=$(OPENSBI_BUILD_ROOT)')"; \
 	 else \
 		( echo "$$(date '+[fw %F %T %z] START build-opensbi jobs=$(OPENSBI_MAKE_JOBS) root=$(OPENSBI_BUILD_ROOT)')" && \
-		  cd $(OPENSBI) && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
+		  cd $(OPENSBI_PATCHED_SRC) && $(MAKE) O="$(OPENSBI_BUILD_ROOT)" PLATFORM=generic \
+			OPENSBI_VERSION_GIT="$$OPENSBI_VERSION_GIT" \
 			FW_PAYLOAD_PATH=$(LINUX_IMAGE) \
 			FW_PAYLOAD_OFFSET=0x100000 \
 			FW_PAYLOAD_FDT_ADDR=$$FW_FDT_ADDR \
@@ -559,7 +575,8 @@ build-gcpt-t1:
 clean:
 	@echo "Cleaning build artifacts..."
 	@[ -d "$(RISCV_LINUX_HOME)" ] && cd $(RISCV_LINUX_HOME) && $(MAKE) mrproper || true
-	@[ -d "$(OPENSBI)" ] && cd $(OPENSBI) && $(MAKE) clean && rm -rf build || true
+	@[ -d "$(OPENSBI)" ] && cd $(OPENSBI) && $(MAKE) clean && rm -rf build build-qemu build-nemu || true
+	@rm -rf $(OPENSBI_QEMU_PATCHED_SRC) $(OPENSBI_NEMU_PATCHED_SRC) $(OPENSBI_QEMU_BUILD_ROOT) $(OPENSBI_NEMU_BUILD_ROOT)
 	@[ -d "$(GCPT_HOME)" ] && cd $(GCPT_HOME) && $(MAKE) clean || true
 	@[ -d "$(GCPT_RESTORE_HOME)" ] && cd $(GCPT_RESTORE_HOME) && $(MAKE) clean || true
 	@rm -rf $(GCPT_RESTORE_BUILD_ROOT)
