@@ -68,6 +68,23 @@ git commit -m "bump(<component>): <reason>"
 
 `make versions` is part of the standard root bump flow. If `VERSIONS` does not change when expected, inspect `scripts/update-versions.sh` and the current submodule state before committing.
 
+### XSAI nested submodules
+
+When updating the top-level `XSAI` gitlink, do not use an external recursive
+submodule update to initialize or move XSAI's nested submodules. After checking
+out the intended `XSAI` commit, run XSAI's own initialization target from inside
+that submodule:
+
+```bash
+git -C XSAI fetch origin
+git -C XSAI checkout <target-xsai-sha>
+make -C XSAI init-force
+git -C XSAI status --short
+```
+
+Use the resulting clean `XSAI` worktree as the parent gitlink target, then run
+the normal root `make versions` flow.
+
 The root bump PR must include:
 
 - submodule path

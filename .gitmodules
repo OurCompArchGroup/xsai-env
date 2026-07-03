@@ -4,8 +4,8 @@
 	branch = master
 [submodule "nexus-am"]
 	path = nexus-am
-	url = https://github.com/Gs-ygc/nexus-am.git
-	branch = master
+	url = https://github.com/OurCompArchGroup/nexus-am-ame.git
+	branch = feat-matrix
 [submodule "DRAMsim3"]
 	path = DRAMsim3
 	url = https://github.com/OpenXiangShan/DRAMsim3.git
@@ -27,7 +27,8 @@
 	update = none
 [submodule "riscv-matrix-spec"]
 	path = riscv-matrix-spec
-	url = https://github.com/OpenXiangShan/riscv-matrix-spec
+	url = https://github.com/OurCompArchGroup/riscv-matrix-extension-spec.git
+	branch = master
 [submodule "qemu"]
 	path = qemu
 	url = https://github.com/OpenXiangShan/qemu
