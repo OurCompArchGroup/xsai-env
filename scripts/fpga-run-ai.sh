@@ -12,11 +12,11 @@ REMOTE_PAYLOAD="${FPGA_REMOTE_PAYLOAD:-}"
 LTX="${FPGA_LTX:-/home/fpga/xsai.ltx}"
 DRIVER="${FPGA_DRIVER:-~/nexus-am/apps/dse-driver-ai/build/dse-driver-ai-riscv64-xs-driver.bin}"
 XDMA_PROCESS="${FPGA_XDMA_PROCESS:-~/ai/xdma_process/build/xdma_process}"
-TIMEOUT="${FPGA_TIMEOUT:-120}"
+TIMEOUT="${FPGA_TIMEOUT:-720}"
 REMOTE_SUDO="${FPGA_REMOTE_SUDO-}"
 UART_CMD="${FPGA_UART_CMD:-}"
 KILL_UART_READERS="${FPGA_KILL_UART_READERS:-1}"
-PASS_PATTERN="${FPGA_PASS_PATTERN:-}"
+PASS_PATTERN="${FPGA_PASS_PATTERN-"[xsai-init] launching after_workload with status"}"
 FAIL_PATTERN="${FPGA_FAIL_PATTERN:-}"
 PCIE_REMOVE_CMD="${FPGA_PCIE_REMOVE_CMD:-}"
 PCIE_RESCAN_CMD="${FPGA_PCIE_RESCAN_CMD:-}"
@@ -72,6 +72,11 @@ run_remote() {
   ssh "$HOST" "bash -lc $(printf '%q' "$cmd")"
 }
 
+run_remote_best_effort() {
+  local cmd="$1"
+  timeout 10s ssh "$HOST" "bash -lc $(printf '%q' "$cmd")"
+}
+
 run_remote_with_setup() {
   local cmd="$1"
   run_remote "${REMOTE_SETUP}; ${cmd}"
@@ -87,6 +92,7 @@ with_remote_sudo() {
 
 require_cmd ssh
 require_cmd scp
+require_cmd timeout
 
 if [[ "$RESET_ONLY" -eq 0 ]]; then
   [[ -n "$PAYLOAD" ]] || { echo "Missing --payload" >&2; exit 1; }
@@ -108,27 +114,108 @@ if [[ -z "$UART_CMD" ]]; then
   UART_CMD="$(with_remote_sudo '~/xdma_work/tools/proto/pcie-util' /dev/xdma0_user uart 0x10000)"
 fi
 remote_tcl="/tmp/xsai-reset-cpu-${run_id}.tcl"
-remote_uart_log="/tmp/xsai-fpga-uart-${run_id}.log"
-remote_uart_pid="/tmp/xsai-fpga-uart-${run_id}.pid"
 local_uart_log="$XS_PROJECT_ROOT/log/fpga-uart-${run_id}.log"
+local_vivado_reset_log="$XS_PROJECT_ROOT/log/fpga-vivado-reset-${run_id}.log"
 uart_started=0
+uart_stream_pid=""
+reset_tcl_uploaded=0
+
+stream_uart() {
+  local fifo="${TMPDIR:-/tmp}/xsai-fpga-uart-${run_id}-$$.fifo"
+  local ssh_pid=""
+  local line
+  local stream_rc=0
+  local saw_terminal_pattern=0
+  local ssh_rc=0
+
+  cleanup_stream() {
+    if [[ -n "$ssh_pid" ]]; then
+      kill "$ssh_pid" >/dev/null 2>&1 || true
+      wait "$ssh_pid" >/dev/null 2>&1 || true
+      ssh_pid=""
+    fi
+    rm -f "$fifo"
+  }
+
+  rm -f "$fifo"
+  mkfifo "$fifo" || return 1
+  trap 'cleanup_stream; exit 143' TERM INT
+  trap cleanup_stream EXIT
+
+  ssh "$HOST" "bash -lc $(printf '%q' "$UART_CMD")" > "$fifo" &
+  ssh_pid="$!"
+
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    printf '%s\n' "$line"
+    printf '%s\n' "$line" >> "$local_uart_log"
+    if [[ -n "$FAIL_PATTERN" && "$line" =~ $FAIL_PATTERN ]]; then
+      stream_rc=42
+      saw_terminal_pattern=1
+      break
+    fi
+    if [[ -n "$PASS_PATTERN" && "$line" == *"$PASS_PATTERN"* ]]; then
+      stream_rc=0
+      saw_terminal_pattern=1
+      break
+    fi
+  done < "$fifo"
+
+  if [[ "$saw_terminal_pattern" -eq 1 ]]; then
+    cleanup_stream
+    trap - TERM INT EXIT
+    return "$stream_rc"
+  fi
+
+  wait "$ssh_pid"
+  ssh_rc=$?
+  ssh_pid=""
+  rm -f "$fifo"
+  trap - TERM INT EXIT
+  return "$ssh_rc"
+}
 
 cleanup() {
-  if [[ "$uart_started" -eq 1 ]]; then
-    run_remote "if [ -f ${remote_uart_pid} ]; then kill \$(cat ${remote_uart_pid}) >/dev/null 2>&1 || true; fi" || true
+  if [[ -n "$uart_stream_pid" ]]; then
+    kill "$uart_stream_pid" >/dev/null 2>&1 || true
+    wait "$uart_stream_pid" >/dev/null 2>&1 || true
   fi
-  run_remote "rm -f ${remote_tcl} ${remote_uart_pid}" >/dev/null 2>&1 || true
+  if [[ "$uart_started" -eq 1 && "$KILL_UART_READERS" -eq 1 ]]; then
+    run_remote_best_effort "pkill -f '[p]cie-util .*uart' >/dev/null 2>&1 || true" >/dev/null 2>&1 || true
+  fi
+  run_remote_best_effort "rm -f ${remote_tcl}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 set_reset_vio() {
   local value="$1"
-  echo "[fpga] Uploading reset helper to ${HOST}:${remote_tcl}"
-  scp "$RESET_TCL_LOCAL" "${HOST}:${remote_tcl}"
+  local action="Setting"
+  if [[ "$value" == "1" ]]; then
+    action="Asserting"
+  elif [[ "$value" == "0" ]]; then
+    action="Releasing"
+  fi
+  if [[ "$reset_tcl_uploaded" -eq 0 ]]; then
+    echo "[fpga] Uploading reset helper to ${HOST}:${remote_tcl}"
+    scp "$RESET_TCL_LOCAL" "${HOST}:${remote_tcl}"
+    reset_tcl_uploaded=1
+  fi
 
-  echo "[fpga] Setting reset VIO to ${value} via Vivado with LTX: ${LTX}"
-  run_remote "test -f ${LTX}"
-  run_remote_with_setup "vivado -mode batch -source ${remote_tcl} -tclargs ${LTX} ${value}"
+  echo "[fpga] ${action} reset VIO (${value}) via Vivado with LTX: ${LTX}"
+  if [[ "$value" == "0" && "$uart_started" -eq 1 ]]; then
+    mkdir -p "$XS_PROJECT_ROOT/log"
+    echo "[fpga] Vivado reset log: ${local_vivado_reset_log}"
+    {
+      run_remote "test -f ${LTX}"
+      run_remote_with_setup "vivado -mode batch -source ${remote_tcl} -tclargs ${LTX} ${value}"
+    } > "$local_vivado_reset_log" 2>&1 || {
+      cat "$local_vivado_reset_log" >&2
+      return 1
+    }
+  else
+    run_remote "test -f ${LTX}"
+    run_remote_with_setup "vivado -mode batch -source ${remote_tcl} -tclargs ${LTX} ${value}"
+  fi
 }
 
 if [[ "$RESET_ONLY" -eq 0 ]]; then
@@ -157,37 +244,61 @@ echo "[fpga] Running XDMA loader"
 run_remote "$(with_remote_sudo "${XDMA_PROCESS}" -i "${REMOTE_PAYLOAD}" -d "${DRIVER}")"
 
 if [[ -n "$UART_CMD" ]]; then
+  require_cmd mkfifo
   mkdir -p "$XS_PROJECT_ROOT/log"
   if [[ "$KILL_UART_READERS" -eq 1 ]]; then
     echo "[fpga] Killing stale UART readers on ${HOST}"
-    run_remote "pkill -f '[p]cie-util .*uart' >/dev/null 2>&1 || true"
+    run_remote_best_effort "pkill -f '[p]cie-util .*uart' >/dev/null 2>&1 || true" >/dev/null 2>&1 || true
   fi
-  echo "[fpga] Starting UART capture on ${HOST}"
-  run_remote "rm -f ${remote_uart_log} ${remote_uart_pid}; nohup bash -lc $(printf '%q' "$UART_CMD") > ${remote_uart_log} 2>&1 & echo \$! > ${remote_uart_pid}"
+  echo "[fpga] Starting UART stream from ${HOST}"
+  : > "$local_uart_log"
+  set +e
+  stream_uart &
+  uart_stream_pid="$!"
+  set -e
   uart_started=1
+  echo "[fpga] Streaming UART output (timeout=${TIMEOUT}s pass=${PASS_PATTERN:-disabled})"
 fi
 
 set_reset_vio 0
 
 if [[ "$uart_started" -eq 1 ]]; then
-  echo "[fpga] Streaming UART output (timeout=${TIMEOUT}s)"
   set +e
-  ssh "$HOST" "timeout ${TIMEOUT}s tail -n +1 -F ${remote_uart_log}" | tee "$local_uart_log"
-  tail_rc=${PIPESTATUS[0]}
+  uart_rc=0
+  deadline=$((SECONDS + TIMEOUT))
+  while kill -0 "$uart_stream_pid" >/dev/null 2>&1; do
+    if (( SECONDS >= deadline )); then
+      kill "$uart_stream_pid" >/dev/null 2>&1 || true
+      sleep 1
+      kill -0 "$uart_stream_pid" >/dev/null 2>&1 && kill -9 "$uart_stream_pid" >/dev/null 2>&1 || true
+      wait "$uart_stream_pid" >/dev/null 2>&1 || true
+      uart_rc=124
+      break
+    fi
+    sleep 1
+  done
+  if [[ "${uart_rc:-}" != 124 ]]; then
+    wait "$uart_stream_pid"
+    uart_rc=$?
+  fi
+  uart_stream_pid=""
   set -e
-  if [[ "$tail_rc" -eq 124 ]]; then
-    echo "[fpga] UART observation window expired after ${TIMEOUT}s; workload may still be running"
-  elif [[ "$tail_rc" -ne 0 ]]; then
-    echo "[fpga] UART tail failed with exit code ${tail_rc}" >&2
-    exit "$tail_rc"
-  fi
-
-  if [[ -n "$PASS_PATTERN" ]] && ! grep -Eq "$PASS_PATTERN" "$local_uart_log"; then
-    echo "[fpga] PASS pattern not found: ${PASS_PATTERN}" >&2
-    exit 1
-  fi
-  if [[ -n "$FAIL_PATTERN" ]] && grep -Eq "$FAIL_PATTERN" "$local_uart_log"; then
+  if [[ "$uart_rc" -eq 124 ]]; then
+    echo "[fpga] UART observation window expired after ${TIMEOUT}s; workload may still be running" >&2
+    exit 124
+  elif [[ "$uart_rc" -eq 42 ]]; then
     echo "[fpga] FAIL pattern matched: ${FAIL_PATTERN}" >&2
+    exit 1
+  elif [[ "$uart_rc" -ne 0 ]]; then
+    if [[ -n "$PASS_PATTERN" ]] && grep -Fq "$PASS_PATTERN" "$local_uart_log"; then
+      echo "[fpga] UART stream exited with ${uart_rc} after PASS pattern; treating as complete"
+    else
+      echo "[fpga] UART stream failed with exit code ${uart_rc}" >&2
+      exit "$uart_rc"
+    fi
+  fi
+  if [[ -n "$PASS_PATTERN" ]] && ! grep -Fq "$PASS_PATTERN" "$local_uart_log"; then
+    echo "[fpga] PASS pattern not found: ${PASS_PATTERN}" >&2
     exit 1
   fi
   echo "[fpga] UART log saved to ${local_uart_log}"

@@ -22,6 +22,12 @@ proc commit_all_vio {device} {
   }
 }
 
+proc refresh_all_vio {device} {
+  foreach vio [get_hw_vios -of_objects $device] {
+    refresh_hw_vio $vio
+  }
+}
+
 proc require_probe {device pattern} {
   set probes [get_hw_probes -of_objects [get_hw_vios -of_objects $device] -filter "NAME =~ *$pattern*"]
   if {[llength $probes] == 0} {
@@ -42,6 +48,7 @@ if {$dev eq ""} {
 current_hw_device $dev
 set_property PROBES.FILE $ltx $dev
 refresh_hw_device $dev
+refresh_all_vio $dev
 
 set reset_probe [require_probe $dev "vio_0_probe_out0"]
 
@@ -52,6 +59,7 @@ set reset_probe [require_probe $dev "vio_0_probe_out0"]
 set_property OUTPUT_VALUE $reset_value $reset_probe
 commit_all_vio $dev
 after 100
+refresh_all_vio $dev
 
 close_hw_target
 disconnect_hw_server

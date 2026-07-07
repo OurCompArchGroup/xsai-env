@@ -168,6 +168,22 @@ Build a rootfs app:
 make -C firmware/riscv-rootfs/apps/hello_xsai install
 ```
 
+When changing Makefile-defined macros, CFLAGS, arch flags, or diagnostic
+switches for a rootfs app, do not trust incremental object reuse. The shared
+`firmware/riscv-rootfs/Makefile.compile` tracks source/header dependencies with
+`.d` files, but flag changes alone do not force existing `.o` files to rebuild.
+Use a clean app rebuild before repacking firmware:
+
+```bash
+make -C firmware/riscv-rootfs/apps/hello_xsai clean install
+make firmware XSAI_INIT_MODE=ci XSAI_WORKLOAD=hello_xsai XSAI_AUTO_EXIT=1 XSAI_DROP_SHELL=0
+```
+
+If a Matrix failure disappears after `clean install`, suspect a stale `.o` or
+stale firmware payload before blaming an instruction. For verbose AME trace
+runs on FPGA, raise `FPGA_TIMEOUT`; a short UART observation window can expire
+while the workload is still making progress.
+
 Build the second smoke app:
 
 ```bash
@@ -177,7 +193,7 @@ make -C firmware/riscv-rootfs/apps/gemm_precomp install
 Build an AM test:
 
 ```bash
-make -C nexus-am/tests/ame0.6 TOOLCHAIN=LLVM
+make -C nexus-am/apps/ame-mmacc TOOLCHAIN=LLVM
 ```
 
 Generate Matrix-aware disassembly:
@@ -217,6 +233,8 @@ For the current smoke path, remember that `hello_xsai` and `gemm_precomp` only e
 ## Easy mistakes
 
 - Editing a rootfs app and forgetting the boot-path closure in `firmware/riscv-rootfs/Makefile`, `initramfs-disk-xsai.txt`, and `init-disk-xsai.sh`
+- Changing rootfs app CFLAGS or Makefile macros and reusing stale `.o` files instead of running `clean install`
+- Treating an FPGA UART timeout during verbose tracing as a confirmed hang without checking the saved UART log for continued progress or pass/fail patterns
 - Jumping straight to RTL before reproducing on QEMU and NEMU
 - Treating `make run-user` as equivalent to the real rootfs boot path
 - Changing shared AME code under `hello_xsai` and forgetting to revalidate `gemm_precomp`

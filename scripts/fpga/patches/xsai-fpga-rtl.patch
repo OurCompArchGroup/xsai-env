@@ -1,0 +1,85 @@
+diff --git a/src/main/scala/top/Configs.scala b/src/main/scala/top/Configs.scala
+index e52e6f172..47485d665 100644
+--- a/src/main/scala/top/Configs.scala
++++ b/src/main/scala/top/Configs.scala
+@@ -674,6 +674,20 @@ class FpgaDefaultConfig(n: Int = 1) extends Config(
+   })
+ )
+
++class FpgaMinimalMatrixConfig(n: Int = 1) extends Config(
++  new MinimalMatrixConfig(n).alter((site, here, up) => {
++    case DebugOptionsKey => up(DebugOptionsKey).copy(
++      AlwaysBasicDiff = false,
++      AlwaysBasicDB = false
++    )
++    case SoCParamsKey => up(SoCParamsKey).copy(
++      L3CacheParamsOpt = Some(up(SoCParamsKey).L3CacheParamsOpt.get.copy(
++        sramClkDivBy2 = false,
++      )),
++    )
++  })
++)
++
+ class FpgaDiffDefaultConfig(n: Int = 1) extends Config(
+   (L3CacheConfig("3MB", inclusive = false, banks = 1, ways = 6)
+     ++ L2CacheConfig("1MB", inclusive = true, banks = 4)
+diff --git a/src/main/scala/top/Top.scala b/src/main/scala/top/Top.scala
+index 2b528ca0b..066830539 100644
+--- a/src/main/scala/top/Top.scala
++++ b/src/main/scala/top/Top.scala
+@@ -275,7 +275,6 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
+         val version = Input(UInt(4.W))
+       }
+       val debug_reset = Output(Bool())
+-      val rtc_clock = Input(Clock())
+       val cacheable_check = new TLPMAIO()
+       val riscv_halt = Output(Vec(NumCores, Bool()))
+       val riscv_critical_error = Output(Vec(NumCores, Bool()))
+@@ -330,11 +329,23 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc()
+
+     val msiInfo = WireInit(0.U.asTypeOf(ValidIO(UInt(soc.IMSICParams.MSI_INFO_WIDTH.W))))
+     // syscnt io input descrip
+-    val ref_reset_sync = withClockAndReset(io.rtc_clock, io.reset) { ResetGen() }
++    val rtcClockDiv = 100
++    val rtcClockHalfPeriod = rtcClockDiv / 2
++    require(rtcClockDiv % 2 == 0, "rtcClockDiv must be even")
++    val rtcClockCounter = withClockAndReset(io.clock, io.reset) {
++      RegInit((rtcClockHalfPeriod - 1).U(log2Ceil(rtcClockHalfPeriod).W))
++    }
++    val rtcClockToggle = rtcClockCounter === 0.U
++    rtcClockCounter := Mux(rtcClockToggle, (rtcClockHalfPeriod - 1).U, rtcClockCounter - 1.U)
++    val rtcClock = withClockAndReset(io.clock, io.reset) { RegInit(false.B) }
++    when (rtcClockToggle) {
++      rtcClock := ~rtcClock
++    }
++    val ref_reset_sync = withClockAndReset(rtcClock.asClock, io.reset) { ResetGen() }
+     misc.module.scntIO.update_en := false.B
+     misc.module.scntIO.update_value := 0.U
+     misc.module.scntIO.stop_en := false.B
+-    misc.module.rtc_clock := io.rtc_clock // syscnt clock
++    misc.module.rtc_clock := rtcClock.asClock // syscnt clock
+     misc.module.rtc_reset := ref_reset_sync.asAsyncReset
+     misc.module.bus_clock := io.clock
+     misc.module.bus_reset := io.reset
+diff --git a/src/test/scala/top/SimTop.scala b/src/test/scala/top/SimTop.scala
+index 2f1ca4b8e..b5db1c7e3 100644
+--- a/src/test/scala/top/SimTop.scala
++++ b/src/test/scala/top/SimTop.scala
+@@ -69,17 +69,6 @@ class XiangShanSim(implicit p: Parameters) extends Module with HasDiffTestInterf
+   soc.io.traceCoreInterface.foreach(_.fromEncoder.enable := false.B)
+   soc.io.traceCoreInterface.foreach(_.fromEncoder.stall  := false.B)
+
+-  // soc.io.rtc_clock is a div100 of soc.io.clock
+-  val rtcClockDiv = 100
+-  val rtcTickCycle = rtcClockDiv / 2
+-  val rtcCounter = RegInit(0.U(log2Ceil(rtcTickCycle + 1).W))
+-  rtcCounter := Mux(rtcCounter === (rtcTickCycle - 1).U, 0.U, rtcCounter + 1.U)
+-  val rtcClock = RegInit(false.B)
+-  when (rtcCounter === 0.U) {
+-    rtcClock := ~rtcClock
+-  }
+-  soc.io.rtc_clock := rtcClock.asClock
+-
+   val success = Wire(Bool())
+   val jtag = Module(new SimJTAG(tickDelay = 3)(p))
+   jtag.connect(soc.io.systemjtag.jtag, clock, reset.asBool, !reset.asBool, success)

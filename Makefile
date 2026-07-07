@@ -1,4 +1,4 @@
-.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu run-fpga fpga-reset firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init _ensure_fpga_payload docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai fpga-rtl fpga-synth fpga-bitstream fpga-sync-bitstream fpga-program fpga-run-bitstream test-matrix qemu run-qemu run-fpga fpga-reset firmware versions simpoint profile cluster ckpt ckpt-nosimpoint uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init _ensure_fpga_payload docker-nemu-image nemu-matrix-ref-so-docker
 
 SHELL := /bin/bash
 
@@ -12,9 +12,12 @@ LLVM_HOME ?= $(XS_PROJECT_ROOT)/local/llvm
 QEMU_HOME ?= $(XS_PROJECT_ROOT)/qemu
 QEMU_HOST_CC ?= gcc
 QEMU_HOST_CXX ?= g++
+VERILATOR_HOST_CC ?= gcc
+VERILATOR_HOST_CXX ?= g++
 # Host-side hardening defaults may inject CET instructions (endbr64).
 # Keep this override centralized so mixed nodes can build runnable binaries.
 HOST_NO_CET_FLAG ?= -fcf-protection=none
+VERILATOR_GCC_NO_UNUSED_FLAGS ?= -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-int-in-bool-context -Wno-shadow -Wno-sign-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable
 GCPT_RESTORE_HOME ?= $(XS_PROJECT_ROOT)/firmware/gcpt_restore
 export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME GCPT_RESTORE_HOME
 NIX_DEVSHELL ?= .\#default
@@ -26,23 +29,50 @@ NEMU_PAYLOAD ?= $(GCPT_RESTORE_HOME)/build-nemu/build/gcpt.bin
 PAYLOAD ?= $(QEMU_PAYLOAD)
 FPGA_HOST ?= fpga
 FPGA_REMOTE_PAYLOAD ?=
-FPGA_LTX ?= /home/fpga/xsai.ltx
+FPGA_BIT_HOME ?=
+FPGA_REMOTE_BIT_HOME ?= /home/fpga/xsai-bitstream/current
+FPGA_LTX ?= $(FPGA_REMOTE_BIT_HOME)/pcie_part_gating_wrapper.ltx
 FPGA_DRIVER ?= ~/nexus-am/apps/dse-driver-ai/build/dse-driver-ai-riscv64-xs-driver.bin
 FPGA_XDMA_PROCESS ?= ~/ai/xdma_process/build/xdma_process
-FPGA_TIMEOUT ?= 120
+FPGA_TIMEOUT ?= 720
 FPGA_UART_CMD ?=
 FPGA_KILL_UART_READERS ?= 1
-FPGA_PASS_PATTERN ?=
+FPGA_PASS_PATTERN ?= [xsai-init] launching after_workload with status
 FPGA_FAIL_PATTERN ?=
 FPGA_PCIE_REMOVE_CMD ?=
 FPGA_PCIE_RESCAN_CMD ?=
+FPGA_PCIE_SUDO ?= sudo -n
+FPGA_XDMA_REQUIRED_DEVICES ?= /dev/xdma0_c2h_0 /dev/xdma0_h2c_0 /dev/xdma0_user /dev/xdma0_bypass
+FPGA_XDMA_RELOAD_ON_MISSING ?= 1
+FPGA_XDMA_MODULE ?= xdma
+FPGA_XDMA_WAIT_SECS ?= 10
 FPGA_REMOTE_SETUP ?= source /tools/Xilinx/Vivado_Lab/2020.2/settings64.sh
 FPGA_REMOTE_SUDO ?=
+FPGA_PROGRAM_PCIE_RESET ?= 1
+FPGA_PROGRAM_ASSERT_RESET ?= 1
+FPGA_RTL_CONFIG ?= FpgaMinimalMatrixConfig
+FPGA_RTL_NUM_CORES ?= 1
+FPGA_RTL_OUT_ROOT ?= $(XS_PROJECT_ROOT)/local/fpga-rtl
+FPGA_RTL_BUILD_DIR ?= $(FPGA_RTL_OUT_ROOT)/build
+FPGA_RTL_CLEAN ?= 1
+FPGA_RTL_TAR_PREFIX ?= xsai-fpga-rtl
+FPGA_RTL_COMPRESS ?= 1
+FPGA_SYNTH_PACK ?= $(XS_PROJECT_ROOT)/tools/fpga/vivado-build-pack
+FPGA_SYNTH_RTL_DIR ?= $(FPGA_RTL_BUILD_DIR)/rtl
+FPGA_SYNTH_OUT_ROOT ?= $(XS_PROJECT_ROOT)/local/fpga-vivado
+FPGA_SYNTH_OUT ?=
+FPGA_SYNTH_PROJECT ?= xsai_fpga
+FPGA_SYNTH_JOBS ?= 8
+FPGA_SYNTH_RUN_TO ?= synth
+FPGA_SYNTH_HOST ?=
+FPGA_SYNTH_SETUP ?=
 QEMU_DTB ?= $(XS_PROJECT_ROOT)/firmware/nemu_board/dts/build/xiangshan_ai.dtb
 RESTORER_BUILD_ROOT := $(GCPT_RESTORE_HOME)/restore-only
 RESTORER := $(RESTORER_BUILD_ROOT)/build/gcpt.bin
 RUN_NEMU_PAYLOAD = $(if $(filter $(QEMU_PAYLOAD),$(PAYLOAD)),$(NEMU_PAYLOAD),$(PAYLOAD))
 FPGA_RUN_SCRIPT := ./scripts/fpga-run-ai.sh
+FPGA_PROGRAM_SCRIPT := ./scripts/fpga-program-bitstream.sh
+FPGA_SYNTH_SCRIPT := ./scripts/fpga-vivado-build.sh
 
 # Canonical QEMU CPU flags — keep in sync with scripts/checkpoint.sh CPU_FLAGS
 QEMU_CPU_FLAGS ?= rv64,v=true,vlen=128,h=true,sstc=true,svpbmt=true,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32,sv39=true,sv48=true,sv57=false,sv64=false
@@ -108,6 +138,12 @@ help:
 	@echo "  make docker-nemu-image       - Build NEMU Docker image from centos.Dockerfile"
 	@echo "  make nemu-matrix-ref-so-docker - Build riscv64-matrix-xs-ref shared library in Docker"
 	@echo "  make xsai        - Build XSAI RTL simulation (Verilator)"
+	@echo "  make fpga-rtl    - Generate FPGA-oriented XSAI RTL"
+	@echo "  make fpga-synth  - Run Vivado project/synthesis flow for FPGA RTL"
+	@echo "  make fpga-bitstream - Run Vivado flow through bitstream generation"
+	@echo "  make fpga-sync-bitstream - Upload local .bit/.ltx bundle to FPGA host"
+	@echo "  make fpga-program - Program FPGA from local .bit/.ltx bundle"
+	@echo "  make fpga-run-bitstream - Program FPGA, then run workload via run-fpga"
 	@echo "  make test-matrix - Run matrix simple test"
 	@echo "  make update      - Update submodules to latest"
 	@echo "  make versions    - Regenerate VERSIONS file from current submodule state"
@@ -118,12 +154,21 @@ help:
 	@echo "                     Optional: MODEL_IMG=<path/to/disk.img> attaches /dev/vda via virtio-blk"
 	@echo "  make fpga-reset  - Reset FPGA CPU via remote Vivado/VIO using FPGA_LTX"
 	@echo "  make run-fpga    - Upload PAYLOAD and execute remote XDMA load/run flow"
-	@echo "                     Knobs: FPGA_HOST FPGA_REMOTE_PAYLOAD FPGA_DRIVER FPGA_LTX"
+	@echo "                     Knobs: FPGA_HOST FPGA_BIT_HOME FPGA_REMOTE_BIT_HOME"
+	@echo "                            FPGA_REMOTE_PAYLOAD FPGA_DRIVER FPGA_LTX"
 	@echo "                            FPGA_XDMA_PROCESS FPGA_TIMEOUT FPGA_UART_CMD"
 	@echo "                            FPGA_KILL_UART_READERS"
 	@echo "                            FPGA_PASS_PATTERN FPGA_FAIL_PATTERN"
+	@echo "                            default FPGA_PASS_PATTERN detects after_workload launch"
 	@echo "                            FPGA_PCIE_REMOVE_CMD FPGA_PCIE_RESCAN_CMD"
-	@echo "                            FPGA_REMOTE_SETUP FPGA_REMOTE_SUDO"
+	@echo "                            FPGA_PCIE_SUDO FPGA_REMOTE_SETUP FPGA_REMOTE_SUDO"
+	@echo "                            FPGA_XDMA_REQUIRED_DEVICES FPGA_XDMA_RELOAD_ON_MISSING"
+	@echo "                            FPGA_XDMA_MODULE FPGA_XDMA_WAIT_SECS"
+	@echo "                            FPGA_PROGRAM_PCIE_RESET FPGA_PROGRAM_ASSERT_RESET"
+	@echo "  FPGA RTL knobs: FPGA_RTL_OUT_ROOT FPGA_RTL_BUILD_DIR FPGA_RTL_CLEAN"
+	@echo "  FPGA synthesis knobs: FPGA_SYNTH_RTL_DIR FPGA_SYNTH_OUT_ROOT FPGA_SYNTH_OUT"
+	@echo "                        FPGA_SYNTH_PACK FPGA_SYNTH_PROJECT FPGA_SYNTH_JOBS"
+	@echo "                        FPGA_SYNTH_RUN_TO FPGA_SYNTH_HOST FPGA_SYNTH_SETUP"
 	@echo "  make ccdb        - Rebuild unified compile_commands.json via bear"
 	@echo "  make ccdb-append - Append a build to compile_commands.json and deduplicate"
 	@echo "  make run-emu-debug PAYLOAD=<p> DIFF=1 WAVE_BEGIN=50000 WAVE_END=180000"
@@ -136,6 +181,7 @@ help:
 	@echo "  make profile     - Phase 1: QEMU profiling (BBV collection)"
 	@echo "  make cluster     - Phase 2: SimPoint clustering"
 	@echo "  make ckpt        - Full 3-phase checkpoint flow (profile→cluster→checkpoint)"
+	@echo "  make ckpt-nosimpoint - One-slice checkpoint flow without SimPoint clustering"
 	@echo "  make ckpt PHASE=profile|cluster|checkpoint  - Run a single phase"
 	@echo "  Knobs: WORKLOAD_NAME CPT_INTERVAL PROFILING_INTERVALS SIMPOINT_MAX_K"
 	@echo "         MEMORY SMP CHECKPOINT_CONFIG MODEL_IMG CKPT_ARGS"
@@ -202,16 +248,66 @@ nemu-matrix-ref-so-docker:
 	docker run --rm --user "$(DOCKER_USER)" -e HOME=/tmp -v "$(XS_PROJECT_ROOT)":/work -w /work $(DOCKER_NEMU_IMAGE) bash -lc 'source /etc/profile && export NEMU_HOME=/work/NEMU && make -C "$$NEMU_HOME" distclean && make -C "$$NEMU_HOME" riscv64-matrix-xs-ref_defconfig && make -C "$$NEMU_HOME" -j"$$(nproc)" && cp "$$NEMU_HOME"/build/riscv64-nemu-interpreter-so /work/local/riscv64-nemu-interpreter-so && make -C "$$NEMU_HOME" distclean'
 
 emu-verilator: _ensure_xsai_init
-	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
+	$(MAKE) -C $(NOOP_HOME) emu -j8 CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 WITH_CHISELDB=1 WITH_CONSTANTIN=0 EMU_THREADS=8 EMU_TRACE=fst CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)" CC="$(VERILATOR_HOST_CC)" CXX="$(VERILATOR_HOST_CXX)" LINK="$(VERILATOR_HOST_CXX)" CFG_CXXFLAGS_NO_UNUSED="$(VERILATOR_GCC_NO_UNUSED_FLAGS)" CFG_CXXFLAGS_PCH="-x c++-header" CFG_CXXFLAGS_PCH_I="-include" CFG_GCH_IF_CLANG=""
 
 xsai: emu-verilator
+
+fpga-rtl: _ensure_xsai_init
+	FPGA_RTL_CONFIG="$(FPGA_RTL_CONFIG)" FPGA_RTL_NUM_CORES="$(FPGA_RTL_NUM_CORES)" FPGA_RTL_OUT_ROOT="$(FPGA_RTL_OUT_ROOT)" FPGA_RTL_BUILD_DIR="$(FPGA_RTL_BUILD_DIR)" FPGA_RTL_CLEAN="$(FPGA_RTL_CLEAN)" FPGA_RTL_TAR_PREFIX="$(FPGA_RTL_TAR_PREFIX)" FPGA_RTL_COMPRESS="$(FPGA_RTL_COMPRESS)" ./scripts/fpga-rtl.sh
+
+fpga-synth:
+	@FPGA_SYNTH_PACK="$(FPGA_SYNTH_PACK)" \
+	  FPGA_SYNTH_RTL_DIR="$(FPGA_SYNTH_RTL_DIR)" \
+	  FPGA_SYNTH_OUT_ROOT="$(FPGA_SYNTH_OUT_ROOT)" \
+	  FPGA_SYNTH_OUT="$(FPGA_SYNTH_OUT)" \
+	  FPGA_SYNTH_PROJECT="$(FPGA_SYNTH_PROJECT)" \
+	  FPGA_SYNTH_JOBS="$(FPGA_SYNTH_JOBS)" \
+	  FPGA_SYNTH_RUN_TO="$(FPGA_SYNTH_RUN_TO)" \
+	  FPGA_SYNTH_HOST="$(FPGA_SYNTH_HOST)" \
+	  FPGA_SYNTH_SETUP="$(FPGA_SYNTH_SETUP)" \
+	  $(FPGA_SYNTH_SCRIPT)
+
+fpga-bitstream:
+	@$(MAKE) fpga-synth FPGA_SYNTH_RUN_TO=bitstream
+
+fpga-sync-bitstream:
+	@FPGA_HOST="$(FPGA_HOST)" \
+	  FPGA_BIT_HOME="$(FPGA_BIT_HOME)" \
+	  FPGA_REMOTE_BIT_HOME="$(FPGA_REMOTE_BIT_HOME)" \
+	  FPGA_REMOTE_SETUP="$(FPGA_REMOTE_SETUP)" \
+	  FPGA_REMOTE_SUDO="$(FPGA_REMOTE_SUDO)" \
+	  FPGA_PCIE_SUDO="$(FPGA_PCIE_SUDO)" \
+	  FPGA_XDMA_REQUIRED_DEVICES="$(FPGA_XDMA_REQUIRED_DEVICES)" \
+	  FPGA_XDMA_RELOAD_ON_MISSING="$(FPGA_XDMA_RELOAD_ON_MISSING)" \
+	  FPGA_XDMA_MODULE="$(FPGA_XDMA_MODULE)" \
+	  FPGA_XDMA_WAIT_SECS="$(FPGA_XDMA_WAIT_SECS)" \
+	  $(FPGA_PROGRAM_SCRIPT) --sync-only
+
+fpga-program:
+	@FPGA_HOST="$(FPGA_HOST)" \
+	  FPGA_BIT_HOME="$(FPGA_BIT_HOME)" \
+	  FPGA_REMOTE_BIT_HOME="$(FPGA_REMOTE_BIT_HOME)" \
+	  FPGA_REMOTE_SETUP="$(FPGA_REMOTE_SETUP)" \
+	  FPGA_REMOTE_SUDO="$(FPGA_REMOTE_SUDO)" \
+	  FPGA_PCIE_SUDO="$(FPGA_PCIE_SUDO)" \
+	  FPGA_XDMA_REQUIRED_DEVICES="$(FPGA_XDMA_REQUIRED_DEVICES)" \
+	  FPGA_XDMA_RELOAD_ON_MISSING="$(FPGA_XDMA_RELOAD_ON_MISSING)" \
+	  FPGA_XDMA_MODULE="$(FPGA_XDMA_MODULE)" \
+	  FPGA_XDMA_WAIT_SECS="$(FPGA_XDMA_WAIT_SECS)" \
+	  FPGA_PCIE_REMOVE_CMD="$(FPGA_PCIE_REMOVE_CMD)" \
+	  FPGA_PCIE_RESCAN_CMD="$(FPGA_PCIE_RESCAN_CMD)" \
+	  FPGA_PROGRAM_PCIE_RESET="$(FPGA_PROGRAM_PCIE_RESET)" \
+	  FPGA_PROGRAM_ASSERT_RESET="$(FPGA_PROGRAM_ASSERT_RESET)" \
+	  $(FPGA_PROGRAM_SCRIPT)
+
+fpga-run-bitstream: fpga-program run-fpga
 
 emu-gsim:
 	$(MAKE) -C $(NOOP_HOME) gsim -j CONFIG=DefaultMatrixConfig WITH_DRAMSIM3=1 EMU_TRACE="fst" GSIM=1 CFLAGS="$(HOST_NO_CET_FLAG)" CXXFLAGS="$(HOST_NO_CET_FLAG)"
 
 test-matrix:
-	$(MAKE) -C ${AM_HOME}/tests/ame0.6 TOOLCHAIN=LLVM
-	$(MAKE) -C ${AM_HOME}/tests/ame0.6 TOOLCHAIN=LLVM  run-emu
+	$(MAKE) -C ${AM_HOME}/apps/ame-mmacc ARCH=riscv64-xs TOOLCHAIN=LLVM
+	$(MAKE) run-emu PAYLOAD=${AM_HOME}/apps/ame-mmacc/build/ame-mmacc-riscv64-xs.bin
 
 update:
 	./scripts/update-submodule.sh
@@ -472,6 +568,9 @@ PHASE ?= all
 ckpt: $(SIMPOINT_BIN) _ensure_qemu _ensure_firmware _ensure_qemu_dtb
 ckpt: $(SIMPOINT_BIN) _ensure_qemu_plugin _ensure_firmware
 	$(CKPT_SCRIPT) $(PHASE) $(CKPT_COMMON_FLAGS)
+
+ckpt-nosimpoint: _ensure_qemu _ensure_firmware _ensure_qemu_dtb
+	$(CKPT_SCRIPT) all $(CKPT_COMMON_FLAGS)
 
 # Dump every N instructions across the whole execution, no SimPoint needed
 uniform: _ensure_qemu _ensure_firmware _ensure_qemu_dtb

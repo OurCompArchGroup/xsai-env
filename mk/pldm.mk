@@ -16,25 +16,19 @@ RELEASE                 ?= 1
 # Default PLDM configuration (local development)
 PLDM_CONFIG_DEFAULT := DefaultMatrixConfig
 PLDM_FLAGS_DEFAULT  := CONFIG=$(PLDM_CONFIG_DEFAULT) \
-                       PLDM=1 MFC=1 \
-                       WITH_CHISELDB=0 WITH_CONSTANTIN=0 \
-                       SIM_MEM_SIZE=8 \
-                       DEBUG_ARGS="--difftest-config ZESNHP"
+                       PLDM=1 FPGA=1 MFC=1 NUM_CORES=1 \
+                       WITH_CHISELDB=0 WITH_CONSTANTIN=0
 
 PLDM_FLAGS_RELEASE  := CONFIG=$(PLDM_CONFIG_DEFAULT) \
-                       PLDM=1 MFC=1 NUM_CORES=1 \
-                       WITH_DRAMSIM3=1 \
+                       PLDM=1 FPGA=1 MFC=1 NUM_CORES=1 \
                        RELEASE=1 \
-                       WITH_CHISELDB=0 WITH_CONSTANTIN=0 \
-                       SIM_MEM_SIZE=8 \
-                       DEBUG_ARGS="--difftest-config ZESNHP"
+                       WITH_CHISELDB=0 WITH_CONSTANTIN=0
 
 # CI/Nightly configuration (matches .github/workflows/fpga.yml)
 PLDM_CONFIG_CI      := DefaultMatrixConfig
 PLDM_FLAGS_CI       := CONFIG=$(PLDM_CONFIG_CI) \
                        PLDM=1 NUM_CORES=1 \
-                       WITH_CHISELDB=0 WITH_CONSTANTIN=0 \
-                       DEBUG_ARGS="--difftest-config ZESNHP"
+                       WITH_CHISELDB=0 WITH_CONSTANTIN=0
 
 # Select config based on PLDM_CI flag
 ifeq ($(PLDM_CI),1)
@@ -54,7 +48,7 @@ endif
 pldm:
 ifeq ($(PLDM_SKIP_BUILD),0)
 	@echo "Building sim-verilog in $(NOOP_HOME)..."
-	$(MAKE) -C $(NOOP_HOME) WITH_DRAMSIM3=1 sim-verilog $(PLDM_BUILD_FLAGS)
+	$(MAKE) -C $(NOOP_HOME) sim-verilog $(PLDM_BUILD_FLAGS)
 else
 	@echo "Skipping build (PLDM_SKIP_BUILD=1)..."
 endif
