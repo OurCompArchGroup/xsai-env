@@ -1,0 +1,231 @@
+name: Build CentOS 7 matrix NEMU shared object
+
+on:
+  push:
+    branches:
+      - ci/34-centos7-nemu-so
+    paths:
+      - .github/workflows/centos7-nemu-so.yml
+      - centos.Dockerfile
+      - Makefile
+  workflow_dispatch:
+    inputs:
+      nemu_repository:
+        description: NEMU source repository in owner/repo form
+        required: true
+        default: OpenXiangShan/NEMU
+        type: string
+      nemu_ref:
+        description: NEMU branch, tag, or commit to build
+        required: true
+        default: 0b8e703791b255b2162ad2f8d83930cff7fd592c
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: centos7-nemu-so-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NEMU_REPOSITORY: ${{ inputs.nemu_repository || 'OpenXiangShan/NEMU' }}
+  NEMU_REF: ${{ inputs.nemu_ref || '0b8e703791b255b2162ad2f8d83930cff7fd592c' }}
+  OUTPUT_NAME: riscv64-nemu-interpreter-so
+  BUILDER_IMAGE: xsai-centos7-build
+
+jobs:
+  build:
+    name: Build and validate CentOS 7 artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout xsai-env
+        uses: actions/checkout@v4
+
+      - name: Resolve NEMU source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$NEMU_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "error: nemu_repository must use owner/repo syntax" >&2
+            exit 1
+          fi
+          if [[ ! "$NEMU_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/@+-]*$ ]]; then
+            echo "error: nemu_ref contains unsupported characters" >&2
+            exit 1
+          fi
+
+          git init NEMU
+          git -C NEMU remote add origin "https://github.com/${NEMU_REPOSITORY}.git"
+          git -C NEMU fetch --depth=1 origin "$NEMU_REF"
+          git -C NEMU checkout --detach FETCH_HEAD
+
+          defconfig=riscv64-matrix-xs-ref_defconfig
+          if [[ ! -f "NEMU/configs/$defconfig" ]]; then
+            echo "error: NEMU/configs/$defconfig is missing at $NEMU_REF" >&2
+            exit 1
+          fi
+
+          commit="$(git -C NEMU rev-parse HEAD)"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "short_commit=${commit:0:12}" >> "$GITHUB_OUTPUT"
+          echo "Resolved NEMU commit: $commit"
+
+      - name: Build CentOS 7 NEMU shared object
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XSAI_ENV_QUIET=1
+          source ./env.sh
+          mkdir -p local
+          make docker-nemu-image
+          make nemu-matrix-ref-so-docker
+
+      - name: Validate binary compatibility
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact="local/$OUTPUT_NAME"
+          [[ -s "$artifact" ]] || {
+            echo "error: missing build artifact: $artifact" >&2
+            exit 1
+          }
+
+          file_description="$(file -Lb "$artifact")"
+          case "$file_description" in
+            *"ELF 64-bit LSB shared object"*"x86-64"*) ;;
+            *)
+              echo "error: unexpected artifact type: $file_description" >&2
+              exit 1
+              ;;
+          esac
+
+          if readelf -d "$artifact" | grep -Eq '\((RPATH|RUNPATH)\)'; then
+            echo "error: artifact contains RPATH or RUNPATH" >&2
+            exit 1
+          fi
+
+          mapfile -t glibc_versions < <(
+            readelf --version-info "$artifact" |
+              sed -nE 's/.*Name: GLIBC_([0-9]+(\.[0-9]+)*).*/\1/p' |
+              sort -Vu
+          )
+          if [[ "${#glibc_versions[@]}" -eq 0 ]]; then
+            echo "error: artifact has no GLIBC version requirements" >&2
+            exit 1
+          fi
+          max_glibc="${glibc_versions[${#glibc_versions[@]}-1]}"
+          newest_glibc="$(printf '%s\n%s\n' 2.17 "$max_glibc" | sort -Vu | tail -n 1)"
+          if [[ "$newest_glibc" != 2.17 ]]; then
+            echo "error: artifact requires GLIBC_$max_glibc; CentOS 7 provides GLIBC_2.17" >&2
+            exit 1
+          fi
+
+          nm -D --defined-only "$artifact" | awk '{print $NF}' > "$RUNNER_TEMP/nemu-symbols"
+          for symbol in \
+            difftest_init \
+            difftest_memcpy \
+            difftest_regcpy \
+            difftest_exec \
+            difftest_raise_intr; do
+            if ! grep -Fxq "$symbol" "$RUNNER_TEMP/nemu-symbols"; then
+              echo "error: required Difftest export is missing: $symbol" >&2
+              exit 1
+            fi
+          done
+
+          docker run --rm \
+            --env LD_LIBRARY_PATH= \
+            --volume "$GITHUB_WORKSPACE/local:/artifacts:ro" \
+            "$BUILDER_IMAGE" \
+            /usr/bin/env -i PATH=/usr/bin:/bin \
+            /usr/bin/python -c \
+            'import ctypes; ctypes.CDLL("/artifacts/riscv64-nemu-interpreter-so")'
+
+          sha256="$(sha256sum "$artifact" | awk '{print $1}')"
+          echo "$sha256  $OUTPUT_NAME" > "local/$OUTPUT_NAME.sha256"
+          echo "max_glibc=$max_glibc" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+          echo "Artifact type: $file_description"
+          echo "Maximum GLIBC requirement: GLIBC_$max_glibc"
+          echo "SHA-256: $sha256"
+
+      - name: Write provenance manifest
+        shell: bash
+        env:
+          NEMU_COMMIT: ${{ steps.source.outputs.commit }}
+          MAX_GLIBC: ${{ steps.validate.outputs.max_glibc }}
+          ARTIFACT_SHA256: ${{ steps.validate.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+
+          base_image="$(docker image inspect centos:7 --format '{{index .RepoDigests 0}}')"
+          builder_image_id="$(docker image inspect "$BUILDER_IMAGE" --format '{{.Id}}')"
+          dockerfile_sha256="$(sha256sum centos.Dockerfile | awk '{print $1}')"
+
+          jq -n \
+            --arg artifact "$OUTPUT_NAME" \
+            --arg repository "$NEMU_REPOSITORY" \
+            --arg requested_ref "$NEMU_REF" \
+            --arg commit "$NEMU_COMMIT" \
+            --arg defconfig riscv64-matrix-xs-ref_defconfig \
+            --arg base_image "$base_image" \
+            --arg builder_image_id "$builder_image_id" \
+            --arg dockerfile_sha256 "$dockerfile_sha256" \
+            --arg max_glibc "$MAX_GLIBC" \
+            --arg sha256 "$ARTIFACT_SHA256" \
+            '{
+              format_version: 1,
+              artifact: $artifact,
+              source: {
+                repository: $repository,
+                requested_ref: $requested_ref,
+                commit: $commit,
+                defconfig: $defconfig
+              },
+              build: {
+                platform: "centos7",
+                base_image: $base_image,
+                builder_image_id: $builder_image_id,
+                dockerfile_sha256: $dockerfile_sha256
+              },
+              compatibility: {
+                architecture: "x86_64",
+                max_glibc: $max_glibc
+              },
+              sha256: $sha256
+            }' > "local/$OUTPUT_NAME.manifest.json"
+
+      - name: Upload shared object
+        uses: actions/upload-artifact@v4
+        with:
+          name: centos7-matrix-nemu-${{ steps.source.outputs.short_commit }}
+          path: |
+            local/riscv64-nemu-interpreter-so
+            local/riscv64-nemu-interpreter-so.sha256
+            local/riscv64-nemu-interpreter-so.manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summarize artifact
+        shell: bash
+        env:
+          NEMU_COMMIT: ${{ steps.source.outputs.commit }}
+          MAX_GLIBC: ${{ steps.validate.outputs.max_glibc }}
+          ARTIFACT_SHA256: ${{ steps.validate.outputs.sha256 }}
+        run: |
+          {
+            echo '## CentOS 7 matrix NEMU artifact'
+            echo
+            echo "- NEMU commit: \`$NEMU_COMMIT\`"
+            echo "- Maximum GLIBC requirement: \`GLIBC_$MAX_GLIBC\`"
+            echo "- SHA-256: \`$ARTIFACT_SHA256\`"
+            echo "- Artifact: \`centos7-matrix-nemu-${NEMU_COMMIT:0:12}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
