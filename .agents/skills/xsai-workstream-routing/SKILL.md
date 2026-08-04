@@ -46,6 +46,7 @@ Read `docs/workstreams.md` and classify the task into one primary workstream:
 - If the request mentions `hello_xsai`, `gemm_precomp`, `initramfs-disk-xsai.txt`, or `init-disk-xsai.sh`, route first to the rootfs software / firmware boundary.
 - If the request mentions `llama.cpp`, `ggml`, `llama-simple-xsai`, or `llama-bench`, route first to the rootfs software path under `firmware/riscv-rootfs/apps/llama.cpp/`.
 - If the request mentions `CUTE`, matrix core, or matrix RTL, route first to `XSAI/CUTE/` and consult `docs/CUTE-Design-Doc/`.
+- If the request mentions `run-fpga`, `fpga-reset`, XDMA loading, remote Vivado/VIO reset, or FPGA UART capture, use `xsai-fpga-flow`.
 
 ## Parallel work rules
 

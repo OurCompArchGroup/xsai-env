@@ -22,6 +22,9 @@ for script in \
   scripts/install-gsim.sh \
   scripts/update-submodule.sh \
   scripts/update-versions.sh \
+  scripts/fpga-program-bitstream.sh \
+  scripts/fpga/pcie-remove.sh \
+  scripts/fpga/pcie-rescan.sh \
   scripts/fpga-run-ai.sh \
   scripts/smoke-test.sh; do
   bash -n "$script"
@@ -40,7 +43,7 @@ make_db="$(mktemp)"
 trap 'rm -f "$make_db"' EXIT
 make -qp >"$make_db" 2>/dev/null || true
 
-declared_targets=(firmware qemu xsai gsim run-fpga fpga-reset nix-shell nix-init nix-test test test-smoke nix-smoke)
+declared_targets=(firmware qemu xsai gsim run-fpga fpga-reset fpga-sync-bitstream fpga-program fpga-run-bitstream nix-shell nix-init nix-test test test-smoke nix-smoke)
 for target in "${declared_targets[@]}"; do
   grep -q "^${target}:" "$make_db"
 done

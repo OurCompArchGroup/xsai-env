@@ -1,0 +1,3 @@
+`define DEG_DATA_WIDTH 1920
+`define PERF_DATA_WIDTH 1920
+`define MAGIC_NUM_WIDTH 8

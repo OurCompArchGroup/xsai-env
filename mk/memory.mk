@@ -67,7 +67,7 @@ XSAI_RAM_BASE ?= 0x80000000
 XSAI_BOOT_RESERVE_SIZE ?= 0x100000
 
 # System RAM in the DTB /memory node (kernel-visible, starts at 0x80000000).
-XSAI_MEMORY_SIZE_HUMAN ?= 4GB
+XSAI_MEMORY_SIZE_HUMAN ?= 8GB
 XSAI_MEMORY_SIZE ?= $(call _xsai_human_to_hex,$(XSAI_MEMORY_SIZE_HUMAN))
 
 # XSAI DMA-coherent tensor pool (reserved, not in kernel address space).
@@ -77,7 +77,7 @@ export XSAI_DIRECT_MAP_MEM_START ?= $(call _xsai_hex_math,$(XSAI_RAM_BASE) + $(X
 # Examples:
 #   XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 1GB
 #   XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 100MB
-XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 3000MB
+XSAI_DIRECT_MAP_MEM_SIZE_HUMAN ?= 6GB
 export XSAI_DIRECT_MAP_MEM_SIZE ?= $(call _xsai_human_to_hex,$(XSAI_DIRECT_MAP_MEM_SIZE_HUMAN))
 
 # QEMU/NEMU physical RAM size passed to -m flag.
