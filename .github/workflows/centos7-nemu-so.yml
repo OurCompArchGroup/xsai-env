@@ -42,7 +42,7 @@ jobs:
 
     steps:
       - name: Checkout xsai-env
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Resolve NEMU source
         id: source
@@ -83,7 +83,9 @@ jobs:
           source ./env.sh
           mkdir -p local
           make docker-nemu-image
-          make nemu-matrix-ref-so-docker
+          # The CentOS image has no passwd entry for the GitHub runner UID. NEMU
+          # fetches build-time dependencies with Git, which requires a known user.
+          make nemu-matrix-ref-so-docker DOCKER_USER=0:0
 
       - name: Validate binary compatibility
         id: validate
@@ -204,7 +206,7 @@ jobs:
             }' > "local/$OUTPUT_NAME.manifest.json"
 
       - name: Upload shared object
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: centos7-matrix-nemu-${{ steps.source.outputs.short_commit }}
           path: |
