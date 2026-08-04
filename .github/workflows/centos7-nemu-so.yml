@@ -168,6 +168,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          docker pull centos:7 >/dev/null
           base_image="$(docker image inspect centos:7 --format '{{index .RepoDigests 0}}')"
           builder_image_id="$(docker image inspect "$BUILDER_IMAGE" --format '{{.Id}}')"
           dockerfile_sha256="$(sha256sum centos.Dockerfile | awk '{print $1}')"
