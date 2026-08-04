@@ -17,7 +17,7 @@ For a subsystem-by-subsystem ownership and dependency map, see `docs/workstreams
 
 ## Recommended Setup
 
-The default workflow is the shared shell environment, not Nix.
+The supported workflow is the shared shell environment.
 
 ### 1. Clone and initialize
 
@@ -51,7 +51,6 @@ Notes:
 
 - `env.sh` is the baseline workflow and shares the same environment logic as `.envrc.base`.
 - `.envrc` adds shared env loading, optional `.envrc.local` overrides, and submodule freshness hints.
-- `.envrc` does not currently auto-enter the Nix devshell.
 - If `direnv` is not installed yet, follow the official installation guide: <https://direnv.net/docs/installation.html>
 - `direnv` also needs to be hooked into your shell before `direnv allow` will work correctly. The official setup guide is here: <https://direnv.net/docs/hook.html>
 - For Bash, the usual setup step is adding `eval "$(direnv hook bash)"` to `~/.bashrc`, then restarting the shell.
@@ -64,17 +63,6 @@ make test-smoke
 ```
 
 This is the fastest top-level validation path. It checks the environment scripts and exported Make targets without kicking off a full rebuild.
-
-## Optional Nix Workflow
-
-Nix entrypoints are still available for reproducibility work or Nix-specific debugging, but they are no longer the default or recommended setup path for this repository.
-
-```bash
-make nix-shell
-make nix-init
-make nix-smoke
-make nix-test
-```
 
 ## Environment Variables
 
@@ -184,8 +172,7 @@ make distclean                        # Deep clean, including local LLVM and QEM
 ├── local/                 # Local tools and generated binaries
 ├── log/                   # Build and runtime logs
 ├── .envrc                 # direnv entrypoint
-├── env.sh                 # Manual environment entrypoint
-└── flake.nix              # Optional Nix environment definition
+└── env.sh                 # Manual environment entrypoint
 ```
 
 Generated artifacts commonly live under `local/`, `build/`, `log/`, and `firmware/checkpoints/`.
@@ -193,7 +180,7 @@ Generated artifacts commonly live under `local/`, `build/`, `log/`, and `firmwar
 ## Troubleshooting
 
 - Start with `docs/troubleshooting.md` for common build and runtime failures.
-- If you switch between environment styles, stale rootfs artifacts are a common source of confusing failures.
+- If you switch compilers or sysroots, stale rootfs artifacts are a common source of confusing failures.
 - `make clean` is the first cleanup step; use `make distclean` when you intentionally want a deeper reset.
 
 ## Issue Reporting

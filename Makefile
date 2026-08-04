@@ -1,4 +1,4 @@
-.PHONY: help deps init init-force llvm gsim nix-shell nix-init nix-test smoke test-smoke nix-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu run-fpga fpga-reset firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init _ensure_fpga_payload docker-nemu-image nemu-matrix-ref-so-docker
+.PHONY: help deps init init-force llvm gsim smoke test-smoke update test clean distclean nemu xsai test-matrix qemu run-qemu run-fpga fpga-reset firmware versions simpoint profile cluster ckpt uniform ccdb ccdb-append pldm _ensure_qemu _ensure_qemu_user _ensure_qemu_plugin _ensure_firmware _ensure_qemu_dtb _ensure_xsai_init _ensure_fpga_payload docker-nemu-image nemu-matrix-ref-so-docker
 
 SHELL := /bin/bash
 
@@ -17,8 +17,6 @@ QEMU_HOST_CXX ?= g++
 HOST_NO_CET_FLAG ?= -fcf-protection=none
 GCPT_RESTORE_HOME ?= $(XS_PROJECT_ROOT)/firmware/gcpt_restore
 export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME GCPT_RESTORE_HOME
-NIX_DEVSHELL ?= .\#default
-NIX_DEVELOP ?= nix develop $(NIX_DEVSHELL) -c
 # LibCheckpoint for multicore flows
 
 QEMU_PAYLOAD ?= $(GCPT_RESTORE_HOME)/build-qemu/build/gcpt.bin
@@ -99,11 +97,7 @@ help:
 	@echo "  make init-force  - Force initialize submodules to avoid empty folders"
 	@echo "  make llvm        - Build custom LLVM toolchain (uses system compiler)"
 	@echo "  make gsim        - Install the latest gsim binary to local/bin"
-	@echo "  make nix-shell   - Enter the reproducible Nix devshell"
-	@echo "  make nix-init    - Run make init-force inside the Nix devshell"
-	@echo "  make nix-test    - Run make test inside the Nix devshell"
 	@echo "  make test-smoke  - Run fast non-build smoke checks"
-	@echo "  make nix-smoke   - Run smoke checks inside the Nix devshell"
 	@echo "  make nemu        - Build NEMU simulator"
 	@echo "  make docker-nemu-image       - Build NEMU Docker image from centos.Dockerfile"
 	@echo "  make nemu-matrix-ref-so-docker - Build riscv64-matrix-xs-ref shared library in Docker"
@@ -160,28 +154,15 @@ llvm:
 gsim:
 	./scripts/install-gsim.sh
 
-nix-shell:
-	nix develop $(NIX_DEVSHELL)
-
-nix-init:
-	$(NIX_DEVELOP) make init-force
-
-nix-test:
-	$(NIX_DEVELOP) make test
-
 test-smoke:
-	./scripts/smoke-test.sh --mode manual
+	./scripts/smoke-test.sh
 
 smoke: test-smoke
-
-nix-smoke:
-	$(NIX_DEVELOP) ./scripts/smoke-test.sh --mode nix
 
 qemu:
 	cd $(QEMU_HOME) && mkdir -p build && cd build && \
 	env \
 	  -u CROSS_COMPILE -u CC -u CXX -u AR -u AS -u LD -u NM -u OBJCOPY -u OBJDUMP -u RANLIB -u STRIP \
-	  NIX_HARDENING_ENABLE="$${NIX_HARDENING_ENABLE//fortify/}" \
 	  ../configure \
 	    --cc=$(QEMU_HOST_CC) \
 	    --host-cc=$(QEMU_HOST_CC) \

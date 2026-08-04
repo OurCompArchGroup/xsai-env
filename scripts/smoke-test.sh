@@ -5,12 +5,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MODE="${1:-manual}"
-if [[ "$MODE" == "--mode" ]]; then
-  MODE="${2:-manual}"
+if [[ "$#" -ne 0 ]]; then
+  echo "usage: $0" >&2
+  exit 2
 fi
 
-printf '[smoke] mode=%s\n' "$MODE"
+printf '[smoke] mode=manual\n'
 
 for script in \
   env.sh \
@@ -40,20 +40,14 @@ make_db="$(mktemp)"
 trap 'rm -f "$make_db"' EXIT
 make -qp >"$make_db" 2>/dev/null || true
 
-declared_targets=(firmware qemu xsai gsim run-fpga fpga-reset nix-shell nix-init nix-test test test-smoke nix-smoke)
+declared_targets=(firmware qemu xsai gsim run-fpga fpga-reset test test-smoke)
 for target in "${declared_targets[@]}"; do
   grep -q "^${target}:" "$make_db"
 done
 
-safe_dry_run_targets=(gsim nix-shell nix-init nix-test test-smoke nix-smoke)
+safe_dry_run_targets=(gsim test-smoke)
 for target in "${safe_dry_run_targets[@]}"; do
   make -n "$target" >/dev/null
- done
-
-if [[ "$MODE" == "nix" ]]; then
-  command -v nix >/dev/null
-  command -v riscv64-unknown-linux-gnu-gcc >/dev/null
-  nix flake show --no-write-lock-file >/dev/null
-fi
+done
 
 printf '[smoke] ok\n'

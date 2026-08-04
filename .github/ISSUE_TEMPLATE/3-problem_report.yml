@@ -27,7 +27,7 @@ body:
       label: Problem area
       options:
         - Initial setup
-        - Nix / direnv
+        - direnv
         - LLVM / toolchain
         - Firmware / rootfs
         - QEMU flow
@@ -62,7 +62,6 @@ body:
       value: |
         - Host OS:
         - Kernel:
-        - Nix version (if used):
         - direnv version (if used):
         - gcc version:
         - clang version:
