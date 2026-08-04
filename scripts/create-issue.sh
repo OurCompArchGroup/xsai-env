@@ -131,8 +131,8 @@ build_issue_body() {
     fi
     printf -- '- Report bundle: %s\n\n' "$report_note"
 
-    collect_summary_block "Environment Summary" bash -lc "source '$ROOT/env.sh' >/dev/null 2>&1 || true; env | grep -E '^(XS_PROJECT_ROOT|NEMU_HOME|QEMU_HOME|AM_HOME|NOOP_HOME|LLVM_HOME|RISCV|RISCV_ROOTFS_HOME|QEMU_LD_PREFIX|IN_NIX_SHELL)=' | sort"
-    collect_summary_block "Tool Versions" bash -lc "for tool in git make bash python3 gcc clang java mill nix direnv gh; do if command -v \"\$tool\" >/dev/null 2>&1; then echo \"[\$tool]\"; \"\$tool\" --version 2>&1 | head -n 2; echo; fi; done"
+    collect_summary_block "Environment Summary" bash -lc "source '$ROOT/env.sh' >/dev/null 2>&1 || true; env | grep -E '^(XS_PROJECT_ROOT|NEMU_HOME|QEMU_HOME|AM_HOME|NOOP_HOME|LLVM_HOME|RISCV|RISCV_ROOTFS_HOME|QEMU_LD_PREFIX)=' | sort"
+    collect_summary_block "Tool Versions" bash -lc "for tool in git make bash python3 gcc clang java mill direnv gh; do if command -v \"\$tool\" >/dev/null 2>&1; then echo \"[\$tool]\"; \"\$tool\" --version 2>&1 | head -n 2; echo; fi; done"
     collect_summary_block "Repository Status" bash -lc "printf 'status:\n'; git -C '$ROOT' status --short; printf '\nsubmodules:\n'; git -C '$ROOT' submodule status"
     if [[ -n "$LOG_SNIPPET" ]]; then
       printf '## Relevant Log Snippet\n\n```text\n%s\n```\n\n' "$LOG_SNIPPET"

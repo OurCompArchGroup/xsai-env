@@ -25,7 +25,7 @@ body:
       label: Requested area
       options:
         - Environment bootstrap
-        - Nix / direnv
+        - direnv
         - LLVM / toolchain
         - Firmware / rootfs
         - QEMU flow

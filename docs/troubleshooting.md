@@ -2,12 +2,12 @@
 
 Common failures, with logs and fixes.
 
-## Mixed Nix / non-Nix rootfs artifacts
+## Rootfs artifacts from another toolchain
 
 ### Log
 
 ```text
-error: patchelf is required to rewrite interpreter /nix/store/.../ld-linux-riscv64-lp64d.so.1 -> /lib/ld-linux-riscv64-lp64d.so.1
+error: patchelf is required to rewrite interpreter /old/toolchain/lib/ld-linux-riscv64-lp64d.so.1 -> /lib/ld-linux-riscv64-lp64d.so.1
 make[4]: *** [firmware/riscv-rootfs/Makefile.app:24: install] Error 1
 make[3]: *** [Makefile:13: apps/busybox] Error 2
 make[2]: *** [Makefile:139: build-rootfs] Error 2
@@ -15,7 +15,7 @@ make[2]: *** [Makefile:139: build-rootfs] Error 2
 
 ### Cause
 
-Old rootfs app binaries from a Nix build were reused in a non-Nix build.
+Rootfs app binaries built with a different compiler or sysroot were reused after the environment changed.
 
 ### Recovery
 

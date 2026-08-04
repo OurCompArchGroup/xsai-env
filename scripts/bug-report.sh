@@ -62,7 +62,7 @@ collect_host_info() {
     capture_cmd hardware.txt disk "df -h '${ROOT}'"
   fi
 
-  for tool in git make bash python3 gcc clang ldd java mill nix direnv patchelf qemu-system-riscv64 qemu-riscv64; do
+  for tool in git make bash python3 gcc clang ldd java mill direnv patchelf qemu-system-riscv64 qemu-riscv64; do
     if command_exists "$tool"; then
       capture_cmd tools.txt "$tool" "$tool --version | head -n 3"
     else
@@ -70,7 +70,7 @@ collect_host_info() {
     fi
   done
 
-  capture_cmd env.txt selected-environment "source '${ROOT}/env.sh' >/dev/null 2>&1 || true; env | grep -E '^(XS_PROJECT_ROOT|NEMU_HOME|QEMU_HOME|AM_HOME|NOOP_HOME|LLVM_HOME|RISCV|RISCV_ROOTFS_HOME|QEMU_LD_PREFIX|IN_NIX_SHELL|XSAI_ENV_QUIET)=' | sort"
+  capture_cmd env.txt selected-environment "source '${ROOT}/env.sh' >/dev/null 2>&1 || true; env | grep -E '^(XS_PROJECT_ROOT|NEMU_HOME|QEMU_HOME|AM_HOME|NOOP_HOME|LLVM_HOME|RISCV|RISCV_ROOTFS_HOME|QEMU_LD_PREFIX|XSAI_ENV_QUIET)=' | sort"
 }
 
 collect_repo_info() {

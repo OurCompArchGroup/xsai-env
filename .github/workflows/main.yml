@@ -12,17 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: DeterminateSystems/nix-installer-action@main
-
-      - name: Check flake smoke flow
-        run: |
-          git config --global url."https://github.com/".insteadOf git@github.com:
-          git config --global url."https://".insteadOf git://
-          nix flake check --print-build-logs
-
-      - name: Check Makefile Nix wrapper
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          make nix-smoke
+      - name: Run top-level smoke checks
+        run: make test-smoke

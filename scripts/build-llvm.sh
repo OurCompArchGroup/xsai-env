@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ---------------------------------------------------------------------------
 # Detect RISC-V cross compiler
-# Priority: 1) Nix RISCV env  2) RISCV_TOOLCHAIN_PREFIX  3) riscv64-linux-gnu-
+# Priority: 1) RISCV toolchain root  2) RISCV_TOOLCHAIN_PREFIX  3) compiler on PATH
 # ---------------------------------------------------------------------------
 if [[ -n "${RISCV:-}" && -x "$RISCV/bin/riscv64-unknown-linux-gnu-gcc" ]]; then
   RISCV_TOOLCHAIN_PREFIX="$RISCV/bin/riscv64-unknown-linux-gnu-"

@@ -4,14 +4,13 @@
 
 - Use the top-level `Makefile` from the repo root.
 - Default to the shared shell environment: `source env.sh` for one-shot shells, or `direnv allow` if direnv is already part of the user's workflow.
-- Treat Nix as optional. Use `make nix-shell`, `make nix-init`, `make nix-smoke`, or `make nix-test` only when the task explicitly asks for Nix or when you need to reproduce a Nix-specific issue.
 - Run `make init-force` before the first heavy build on a fresh checkout.
 - Use `make gsim` only when the task explicitly needs `gsim`; it downloads the latest upstream release into `local/bin`.
 
 ## Environment
 
 - `env.sh` and `.envrc.base` share `scripts/env-common.sh` and are the canonical environment setup paths.
-- `.envrc` currently layers shared env loading, optional `.envrc.local` overrides, and submodule freshness hints; it does not currently auto-enter the Nix devshell.
+- `.envrc` layers shared env loading, optional `.envrc.local` overrides, and submodule freshness hints.
 - The top-level environment intentionally does not export `CROSS_COMPILE`; firmware and software flows set toolchain prefixes locally.
 - `RISCV`, `RISCV_SYSROOT`, and `QEMU_LD_PREFIX` are auto-detected when possible; use `.envrc.local` or explicit exports for machine-specific overrides.
 - `local/`, `build/`, `log/`, and `firmware/checkpoints/` are generated artifacts.
@@ -22,14 +21,12 @@
 - Be careful with `make -n` on orchestration or `run-*` targets: recursive `$(MAKE)` inside recipes may still execute, so inspect the Makefile first when a dry run must be side-effect free.
 - Prefer `make test-smoke` for fast top-level validation.
 - Use `make test` for the heavier manual-environment sanity check.
-- Use `make nix-smoke` or `make nix-test` only for Nix-specific work.
 - Avoid full RTL rebuilds unless the task requires them.
 
 ## Agent workflow
 
 - Keep docs, scripts, and CI aligned with the top-level `Makefile`, `env.sh`, `.envrc`, and firmware/QEMU entrypoints.
 - Prefer editing shared root scripts over duplicating logic in CI or ad hoc wrappers.
-- Do not recommend Nix as the default setup path unless the user explicitly wants it.
 - When documenting workflows, call out local-only helpers such as `make run-user` instead of presenting them as portable validation targets.
 - Point users to `docs/troubleshooting.md`, `scripts/bug-report.sh`, and `scripts/create-issue.sh` when reporting build or runtime issues.
 - Favor deterministic inputs over `latest` downloads unless explicitly requested.

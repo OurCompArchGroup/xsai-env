@@ -10,14 +10,6 @@ canonical_dir() {
   (cd "$dir" && pwd -P)
 }
 
-read_first_line() {
-  local file="$1"
-  [[ -r "$file" ]] || return 1
-  IFS= read -r line < "$file" || true
-  [[ -n "${line:-}" ]] || return 1
-  printf '%s\n' "$line"
-}
-
 candidate_prefixes() {
   if [[ -n "${CROSS_COMPILE:-}" ]]; then
     printf '%s\n' "$CROSS_COMPILE"
@@ -28,17 +20,10 @@ candidate_prefixes() {
 
 resolve_sysroot_from_root() {
   local root="$1"
-  local sysroot=""
   [[ -n "$root" && -d "$root" ]] || return 1
 
   if [[ -d "$root/sysroot" ]]; then
     canonical_dir "$root/sysroot"
-    return 0
-  fi
-
-  sysroot="$(read_first_line "$root/nix-support/orig-libc" 2>/dev/null || true)"
-  if [[ -n "$sysroot" && -d "$sysroot" ]]; then
-    canonical_dir "$sysroot"
     return 0
   fi
 
