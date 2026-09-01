@@ -59,6 +59,8 @@ Important knobs:
 - The default diff reference is `XSAI/ready-to-run/riscv64-nemu-interpreter-so`.
 - If the mismatch may actually be in the reference build, validate the intended NEMU defconfig and `.so` separately.
 - Treat difftest bugs as potentially cross-subsystem: RTL, NEMU semantics, payload contents, or boot/runtime assumptions can all be at fault.
+- Set `MMA_BACKEND=cuda` only when the user explicitly requests the CUDA reference model; otherwise omit `MMA_BACKEND`. Run `make -C XSAI clean` before switching.
+- For CUDA, check `nvidia-smi -L` and confirm `MMA reference model backend: CUDA` at startup. A `cudaSetDevice: no CUDA-capable device is detected` error means the GPU is unavailable to `emu`, not an RTL/NEMU mismatch.
 
 ## Waveform and DB capture
 
