@@ -1,11 +1,11 @@
 [submodule "XSAI"]
 	path = XSAI
 	url = https://github.com/OpenXiangShan/XSAI
-	branch = master
+	branch = feat-bitnet
 [submodule "nexus-am"]
 	path = nexus-am
 	url = https://github.com/OurCompArchGroup/nexus-am-ame.git
-	branch = feat-matrix
+	branch = feat-bitnet
 [submodule "DRAMsim3"]
 	path = DRAMsim3
 	url = https://github.com/OpenXiangShan/DRAMsim3.git
@@ -13,7 +13,7 @@
 [submodule "NEMU"]
 	path = NEMU
 	url = https://github.com/OpenXiangShan/NEMU.git
-	branch = feat-matrix
+	branch = feat-bitnet
 [submodule "NutShell"]
 	path = NutShell
 	url = https://github.com/OSCPU/NutShell
@@ -22,7 +22,7 @@
 [submodule "llvm-project-ame"]
 	path = llvm-project-ame
 	url = https://github.com/OurCompArchGroup/llvm-project-ame.git
-	branch = triton-commit-hash
+	branch = feat-bitnet
 	shallow = true
 	update = none
 [submodule "riscv-matrix-spec"]
