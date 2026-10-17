@@ -39,13 +39,13 @@ Read `docs/workstreams.md` and classify the task into one primary workstream:
 - Difftest is a coupled `XSAI` + `NEMU` flow.
 - The most important rootfs software hotspots today are `hello_xsai`, `gemm_precomp`, and `llama.cpp`.
 - The main AI inference-framework development path is `firmware/riscv-rootfs/apps/llama.cpp/`.
-- The main RTL matrix-core hotspot is `XSAI/CUTE/`, with local design docs under `docs/CUTE-Design-Doc/`.
+- The main RTL matrix-core hotspot is `XSAI/CUTE/`, with local design docs under `docs/XiangShan-Design-Doc/`.
 
 ## Fast routing hints
 
 - If the request mentions `hello_xsai`, `gemm_precomp`, `initramfs-disk-xsai.txt`, or `init-disk-xsai.sh`, route first to the rootfs software / firmware boundary.
 - If the request mentions `llama.cpp`, `ggml`, `llama-simple-xsai`, or `llama-bench`, route first to the rootfs software path under `firmware/riscv-rootfs/apps/llama.cpp/`.
-- If the request mentions `CUTE`, matrix core, or matrix RTL, route first to `XSAI/CUTE/` and consult `docs/CUTE-Design-Doc/`.
+- If the request mentions `CUTE`, matrix core, or matrix RTL, route first to `XSAI/CUTE/` and consult `docs/XiangShan-Design-Doc/`.
 
 ## Parallel work rules
 
