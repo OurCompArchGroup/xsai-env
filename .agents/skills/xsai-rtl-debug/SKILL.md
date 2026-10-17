@@ -8,7 +8,7 @@ description: Guide for building and debugging the XSAI RTL emulator with difftes
 Use this skill when the task lives primarily in `XSAI/`, `XSAI/difftest/`, or the top-level RTL run wrappers.
 
 The main RTL matrix-core hotspot in the current repo is `XSAI/CUTE/`.
-Design documents for that block are available locally under `docs/CUTE-Design-Doc/`.
+Design documents for that block are available locally under `docs/XiangShan-Design-Doc/`.
 
 ## What this skill is for
 

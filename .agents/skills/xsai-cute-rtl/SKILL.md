@@ -1,6 +1,6 @@
 ---
 name: xsai-cute-rtl
-description: Guide for working on the XSAI/CUTE matrix core. Use this when asked to modify or analyze the main matrix RTL block under XSAI/CUTE, or when the task needs the CUTE design documentation shipped under docs/CUTE-Design-Doc.
+description: Guide for working on the XSAI/CUTE matrix core. Use this when asked to modify or analyze the main matrix RTL block under XSAI/CUTE, or when the task needs the CUTE design documentation shipped under docs/XiangShan-Design-Doc.
 ---
 
 # XSAI CUTE RTL
@@ -15,7 +15,7 @@ Use this skill when the task is primarily about the matrix core under:
 
 Local design documentation is available under:
 
-- `docs/CUTE-Design-Doc/`
+- `docs/XiangShan-Design-Doc/`
 
 That documentation is tracked as a submodule so it can be read from the same workspace as the RTL source.
 
@@ -31,13 +31,12 @@ The most common edit points are:
 
 The most useful local documentation roots are:
 
-- `docs/CUTE-Design-Doc/docs/hardware/`
-- `docs/CUTE-Design-Doc/docs/instruction-set/`
-- `docs/CUTE-Design-Doc/docs/software/`
+- `docs/XiangShan-Design-Doc/docs/zh/cute/`
+- `docs/XiangShan-Design-Doc/docs/en/cute/`
 
 ## How to approach tasks
 
-1. Read the relevant design-doc section under `docs/CUTE-Design-Doc/` first.
+1. Read the relevant CUTE section under `docs/XiangShan-Design-Doc/docs/zh/cute/` or `docs/XiangShan-Design-Doc/docs/en/cute/` first.
 2. Identify the exact block or interface under `XSAI/CUTE/` that owns the behavior.
 3. Treat toolchain, simulator, and software regressions as downstream consumers unless the interface itself is changing.
 4. Validate the change on the narrowest RTL path first, then on the full difftest or workload path if needed.

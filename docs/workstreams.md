@@ -132,7 +132,7 @@ The main RTL development point is:
 
 The CUTE design documentation is available locally under:
 
-- `docs/CUTE-Design-Doc/`
+- `docs/XiangShan-Design-Doc/`
 
 That directory is tracked as a git submodule so both humans and AI agents can consult the design docs from within this workspace.
 
