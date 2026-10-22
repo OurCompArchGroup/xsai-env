@@ -1,6 +1,6 @@
 ---
 name: xsai-submodule-git-flow
-description: Guide for developing and bumping xsai-env Git submodules. Use when a task modifies code inside submodules such as firmware/riscv-rootfs, qemu, NEMU, XSAI, nexus-am, firmware/LibCheckpoint, firmware/gcpt_restore, docs/CUTE-Design-Doc, or nested submodules; when updating gitlinks, running make versions, preparing submodule bump PRs, or deciding inside-out PR order for nested submodules.
+description: Guide for developing and bumping xsai-env Git submodules. Use when a task modifies code inside submodules such as firmware/riscv-rootfs, qemu, NEMU, XSAI, nexus-am, firmware/LibCheckpoint, firmware/gcpt_restore, docs/XiangShan-Design-Doc, or nested submodules; when updating gitlinks, running make versions, preparing submodule bump PRs, or deciding inside-out PR order for nested submodules.
 ---
 
 # XSAI Submodule Git Flow
