@@ -51,6 +51,31 @@ XSAI_DTB_FILE := $(WORKLOAD_BUILD_ENV_HOME)/dts/build/xiangshan_ai.dtb
 XSAI_BOOTARGS ?= console=hvc0 earlycon=sbi
 XSAI_TIMEBASE_FREQ ?= 10000000
 STD_TIMEBASE_FREQ ?= 10000000
+
+# SMP / hart-count knobs.  Defaults reproduce the existing single-core UP
+# behaviour exactly; set them to build a multi-core image:
+#
+#   make -C firmware build-linux    LINUX_SMP=y NR_CPUS=2
+#   make -C firmware build-dtb-xsai NR_HARTS=2
+#   make -C firmware build-gcpt-qemu      # must re-run: the kernel Image is
+#                                         # embedded into the OpenSBI payload
+# then run QEMU with `-smp 2` and the 2-hart DTB.
+#
+# NR_HARTS drives the device-tree cpu@N nodes; NR_CPUS is the kernel ceiling.
+# They must agree with each other AND with QEMU's -smp.  Setting only
+# `-smp 2` on the QEMU command line yields a UP kernel on a 1-cpu DT and the
+# guest will not boot.
+#
+# The UP branch is byte-identical to the previous hardcoded recipe, so
+# CONFIG_NR_CPUS is only written when LINUX_SMP is on.
+LINUX_SMP ?= n
+NR_CPUS ?= 1
+NR_HARTS ?= 1
+DTS_NR_HARTS_ARGS := --nr-harts $(NR_HARTS)
+SMP_IS_ON := $(filter y Y yes YES true TRUE 1,$(LINUX_SMP))
+SMP_CONFIG_ECHO := $(if $(SMP_IS_ON),echo "CONFIG_SMP=y"; echo "CONFIG_NR_CPUS=$(NR_CPUS)",echo "CONFIG_SMP=n")
+SMP_CONFIG_CMD := $(if $(SMP_IS_ON),./scripts/config --enable CONFIG_SMP && ./scripts/config --set-val CONFIG_NR_CPUS $(NR_CPUS),./scripts/config --disable CONFIG_SMP)
+
 INITRAMFS_COMMON_SOURCES := $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-base.txt $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-common-libs.txt
 INITRAMFS_SOURCE ?= $(RISCV_ROOTFS_HOME)/rootfsimg/initramfs-disk-xsai.txt
 # Linux kernel version
@@ -299,7 +324,7 @@ build-linux:
 			echo "CONFIG_RISCV_ISA_ZICBOZ=n"; \
 			echo "CONFIG_RISCV_ISA_ZICBOP=n"; \
 			echo "CONFIG_RISCV_ISA_ZICBOM=n"; \
-			echo "CONFIG_SMP=n"; \
+			$(SMP_CONFIG_ECHO); \
 			echo "CONFIG_DEVMEM=y"; \
 			echo "CONFIG_STRICT_DEVMEM=n"; \
 			echo "CONFIG_IO_STRICT_DEVMEM=n"; \
@@ -354,7 +379,7 @@ build-linux:
 			./scripts/config --disable CONFIG_RISCV_ISA_ZICBOZ && \
 			./scripts/config --disable CONFIG_RISCV_ISA_ZICBOP && \
 			./scripts/config --disable CONFIG_RISCV_ISA_ZICBOM && \
-			./scripts/config --disable CONFIG_SMP && \
+			$(SMP_CONFIG_CMD) && \
 			./scripts/config --enable CONFIG_DEVMEM && \
 			./scripts/config --disable CONFIG_STRICT_DEVMEM && \
 			./scripts/config --disable CONFIG_IO_STRICT_DEVMEM && \
@@ -464,7 +489,7 @@ build-dtb-std: setup-submodules
 	@cd $(WORKLOAD_BUILD_ENV_HOME)/dts && \
 		mkdir -p build && \
 		python3 DTSGen.py \
-			--nr-harts 1 \
+			$(DTS_NR_HARTS_ARGS) \
 			--rva-profile rva23u64 \
 			$(DTS_DIRECT_MAP_ARGS) \
 			--bootargs "console=hvc0 earlycon=sbi" \
@@ -491,7 +516,7 @@ build-dtb-xsai: setup-submodules
 			--compatible $(XSAI_COMPATIBLE) \
 			--model "$(XSAI_MODEL)" \
 			--cpu-compatible xiangshan,ai riscv \
-			--nr-harts 1 \
+			$(DTS_NR_HARTS_ARGS) \
 			--rva-profile rva23u64 \
 			--isa-extensions $(XSAI_EXTRA_ISA_EXTENSIONS) \
 			--direct-map-mem $(XSAI_DIRECT_MAP_MEM_START) $(XSAI_DIRECT_MAP_MEM_SIZE) \
