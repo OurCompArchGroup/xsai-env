@@ -76,3 +76,7 @@
 	path = software/llama.cpp
 	url = https://github.com/OurCompArchGroup/llama.cpp.git
 	branch = feat/ame-matmul-opt
+[submodule "xsai-blas"]
+	path = xsai-blas
+	url = https://github.com/OurCompArchGroup/xsai-blas.git
+	branch = main

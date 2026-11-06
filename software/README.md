@@ -11,9 +11,16 @@ Framework source is kept here as pinned submodules:
 
 - `software/MNN/` — AME kernels and shared allocator
 - `software/ncnn/` — NCNN framework and XSAI convolution glue
-- `software/llama.cpp/` — llama.cpp and ggml AME backend
+- `software/llama.cpp/` — llama.cpp, the ggml AME backend, and the ggml xsai adapter
 
-The source submodules are the single framework source of truth. The matching
+The shared XSAI BLAS/GEMM library is pinned at the repository root as
+`xsai-blas/`, not under `software/`: several apps (llama.cpp and the rootfs test
+app) consume the same prepared-weight and kernel code, and the rootfs wrappers
+resolve it through `XS_PROJECT_ROOT`. Treat the top-level gitlink as the source
+of truth.
+
+The source submodules and the `xsai-blas` gitlink are the single source of
+truth. The matching
 `firmware/riscv-rootfs/apps/{mnn,ncnn,llama.cpp}/` directories contain only
 rootfs build/install wrappers and tests. They must receive an explicit
 `*_SRC` override when a different checkout is intended; they do not silently
@@ -33,6 +40,7 @@ The current high-priority software paths are:
 The most important development points there are:
 
 - `ggml` AME operators
+- `ggml` xsai adapter (Q8_0 `MUL_MAT` to xsai-blas)
 - `llama-simple-xsai`
 - `llama-bench`
 
@@ -61,8 +69,9 @@ For rootfs smoke tests, remember that "the software path works" only when all th
 
 ## Validation
 
-- `make software-init` initializes the framework sources and rootfs at the
-  pinned gitlinks. `make test-ai-software` runs the host-only integration gates.
+- `make software-init` initializes the framework sources, `xsai-blas`, and
+  rootfs at the pinned gitlinks. `make test-ai-software` runs the host-only
+  integration gates.
   See `../docs/ai-software-integration.md` for build gates and claim boundaries.
 - For rootfs apps, start with app-local builds under `firmware/riscv-rootfs/apps/<app>/`, then validate via `make firmware` and `make run-qemu`.
 - For AM apps, use app-local or test-local `nexus-am` targets first, then validate on the intended simulator or RTL path.

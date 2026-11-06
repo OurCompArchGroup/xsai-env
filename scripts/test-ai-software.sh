@@ -5,7 +5,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 rootfs="$root/firmware/riscv-rootfs"
 export XSAI_ENV_ROOT="$root"
 
-for component in software/MNN software/ncnn software/llama.cpp firmware/riscv-rootfs; do
+for component in software/MNN software/ncnn software/llama.cpp firmware/riscv-rootfs xsai-blas; do
     if [[ ! -e "$root/$component/.git" ]]; then
         echo "error: $component is not initialized; run make software-init" >&2
         exit 1

@@ -36,10 +36,11 @@ make test-smoke
 make test-ai-software
 ```
 
-`software-init` initializes only the three framework submodules and rootfs,
-at their recorded gitlinks. It does not update to branch tips or reset dirty
-worktrees. Use the normal `make init-force` workflow before heavy full-stack
-builds on a fresh checkout; Nix is not needed for these software entrypoints.
+`software-init` initializes the three framework submodules, the top-level
+`xsai-blas` library, and rootfs, at their recorded gitlinks. It does not update
+to branch tips or reset dirty worktrees. Use the normal `make init-force`
+workflow before heavy full-stack builds on a fresh checkout; Nix is not needed
+for these software entrypoints.
 
 The host gate checks selected revisions, missing-source diagnostics, explicit
 source overrides, MNN allocator wiring without source writes, model checksum
@@ -49,6 +50,31 @@ validation. Local dirty sources are reported, not certified by this host gate.
 NCNN links the MNN AME kernel and allocator; llama.cpp replaces its allocator
 in the CMake build graph using the MNN source. Neither wrapper fetches a hidden
 app-local clone or copies code into managed framework source.
+
+## xsai-blas and the llama.cpp adapter
+
+`xsai-blas/` is a top-level pinned submodule rather than a `software/` child:
+several apps consume the same GEMM kernels plus the prepared-weight and plan
+runtime, not just the llama.cpp wrapper. The llama.cpp ggml
+adapter lives in `software/llama.cpp` under
+`ggml/src/ggml-cpu/arch/riscv/xsai/`. In a combined AME + XSAI build the XSAI
+buffer type claims Q8_0 `MUL_MAT` weight probes and dispatches them to the
+xsai-blas group32 GEMM; other weight types remain with the AME backend or the
+ggml CPU path.
+
+`XSAI_GGML_BACKEND=0` keeps ggml on the CPU path. `XSAI_GGML_Q8=0` leaves Q8_0
+weights on AME buffers while the rest of the XSAI backend stays enabled. The
+AME Q8 path in the current llama.cpp branch already delegates to the same xsai
+plan runtime, so this switch selects placement and trait ownership, not a
+second kernel. The rootfs wrapper exposes both switches as `--xsai on|off` and
+`--q8 on|off`.
+
+`firmware/riscv-rootfs/apps/xsai-blas-test/` links the same archive and runs the
+library test cases on RISC-V Linux. On a Matrix-enabled QEMU user-mode build,
+`llama-simple` is the host-side runtime check: `llama-simple-xsai` emits a NEMU
+performance-probe signal that this QEMU does not decode, so keep it for in-system
+NEMU/RTL runs. The adapter unit tests build on a non-RISC-V host as described in
+`firmware/riscv-rootfs/apps/llama.cpp/BENCHMARKS.md`.
 
 ## Build gates and profiles
 

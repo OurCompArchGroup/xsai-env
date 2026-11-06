@@ -121,7 +121,7 @@ help:
 	@echo "  make llvm        - Build custom LLVM toolchain (uses system compiler)"
 	@echo "  make gsim        - Install the latest gsim binary to local/bin"
 	@echo "  make test-smoke  - Run fast non-build smoke checks"
-	@echo "  make software-init - Initialize pinned AI framework sources and rootfs"
+	@echo "  make software-init - Initialize pinned AI framework sources, xsai-blas, and rootfs"
 	@echo "  make test-ai-software - Run host-only AI software integration gates"
 	@echo "  make test-fpga   - Run offline FPGA orchestration regression tests"
 	@echo "  make nemu        - Build NEMU simulator"
@@ -190,7 +190,7 @@ test-smoke:
 
 .PHONY: software-init test-ai-software
 software-init:
-	git submodule update --init software/MNN software/ncnn software/llama.cpp firmware/riscv-rootfs
+	git submodule update --init software/MNN software/ncnn software/llama.cpp firmware/riscv-rootfs xsai-blas
 
 test-ai-software:
 	bash ./scripts/test-ai-software.sh
