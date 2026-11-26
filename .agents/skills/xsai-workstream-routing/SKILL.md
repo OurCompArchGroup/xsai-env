@@ -39,12 +39,14 @@ Read `docs/workstreams.md` and classify the task into one primary workstream:
 - Difftest is a coupled `XSAI` + `NEMU` flow.
 - The most important rootfs software hotspots today are `hello_xsai`, `gemm_precomp`, and `llama.cpp`.
 - The main AI inference-framework development path is `firmware/riscv-rootfs/apps/llama.cpp/`.
+- The shared BLAS/GEMM kernel library is `software/xsai-blas/`; framework adapters and the rootfs/AM test runners are its consumers, not alternative owners of the kernels.
 - The main RTL matrix-core hotspot is `XSAI/CUTE/`, with local design docs under `docs/XiangShan-Design-Doc/`.
 
 ## Fast routing hints
 
 - If the request mentions `hello_xsai`, `gemm_precomp`, `initramfs-disk-xsai.txt`, or `init-disk-xsai.sh`, route first to the rootfs software / firmware boundary.
 - If the request mentions `llama.cpp`, `ggml`, `llama-simple-xsai`, or `llama-bench`, route first to the rootfs software path under `firmware/riscv-rootfs/apps/llama.cpp/`.
+- If the request mentions `xsai-blas`, Q8 `MUL_MAT` routing, prepared weights, or a framework GEMM adapter, route first to `software/xsai-blas/` and consult the `xsai-blas` skill.
 - If the request mentions `CUTE`, matrix core, or matrix RTL, route first to `XSAI/CUTE/` and consult `docs/XiangShan-Design-Doc/`.
 
 ## Parallel work rules
@@ -61,6 +63,7 @@ Read `docs/workstreams.md` and classify the task into one primary workstream:
 - NEMU: intended defconfig or reference build
 - AM/runtime: target-local `nexus-am` build or test
 - Rootfs apps: app-local build first, then firmware/QEMU validation
+- `xsai-blas`: kernel tests in `firmware/riscv-rootfs/apps/xsai-blas-test` on QEMU user-mode, then `nexus-am/apps/xsai-blas-test` on NEMU/RTL
 
 For software-heavy changes, the default repo ladder is:
 

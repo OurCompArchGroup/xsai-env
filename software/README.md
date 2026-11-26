@@ -11,9 +11,18 @@ Framework source is kept here as pinned submodules:
 
 - `software/MNN/` — AME kernels and shared allocator
 - `software/ncnn/` — NCNN framework and XSAI convolution glue
-- `software/llama.cpp/` — llama.cpp and ggml AME backend
+- `software/llama.cpp/` — llama.cpp, the ggml AME backend, and the ggml xsai adapter
+- `software/xsai-blas/` — shared BLAS/GEMM kernel library, plan ABI, and tests
 
-The source submodules are the single framework source of truth. The matching
+The shared XSAI BLAS/GEMM library is pinned here as `software/xsai-blas/`.
+It is a library, not a framework: llama.cpp, MNN, the rootfs test app, and the
+AM test runner consume the same prepared-weight and plan runtime. The top-level
+`Makefile` and `scripts/env-common.sh` export `XSAI_BLAS_HOME` so wrappers
+resolve the library without hard-coding a sibling path. Treat the
+`software/xsai-blas` gitlink as the source of truth.
+
+The source submodules and the `software/xsai-blas` gitlink are the single
+source of truth. The matching
 `firmware/riscv-rootfs/apps/{mnn,ncnn,llama.cpp}/` directories contain only
 rootfs build/install wrappers and tests. They must receive an explicit
 `*_SRC` override when a different checkout is intended; they do not silently
@@ -33,6 +42,7 @@ The current high-priority software paths are:
 The most important development points there are:
 
 - `ggml` AME operators
+- `ggml` xsai adapter (Q8_0 `MUL_MAT` to xsai-blas)
 - `llama-simple-xsai`
 - `llama-bench`
 
@@ -61,8 +71,9 @@ For rootfs smoke tests, remember that "the software path works" only when all th
 
 ## Validation
 
-- `make software-init` initializes the framework sources and rootfs at the
-  pinned gitlinks. `make test-ai-software` runs the host-only integration gates.
+- `make software-init` initializes the framework sources, `software/xsai-blas`,
+  and rootfs at the pinned gitlinks. `make test-ai-software` runs the host-only
+  integration gates.
   See `../docs/ai-software-integration.md` for build gates and claim boundaries.
 - For rootfs apps, start with app-local builds under `firmware/riscv-rootfs/apps/<app>/`, then validate via `make firmware` and `make run-qemu`.
 - For AM apps, use app-local or test-local `nexus-am` targets first, then validate on the intended simulator or RTL path.

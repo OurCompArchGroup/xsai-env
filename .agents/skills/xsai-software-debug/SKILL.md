@@ -25,6 +25,7 @@ Use the existing variables directly:
 - `LLVM_HOME` for the custom LLVM installation
 - `RISCV_ROOTFS_HOME` for Linux/rootfs-side apps
 - `AM_HOME` for AM apps and tests
+- `XSAI_BLAS_HOME` for the shared kernel library under `software/xsai-blas`
 - `QEMU_LD_PREFIX` when a dynamically linked binary needs a RISC-V sysroot at runtime
 
 The Matrix ISA reference lives in `riscv-matrix-spec/`.
@@ -43,12 +44,18 @@ The most important rootfs software hotspots today are:
 - `firmware/riscv-rootfs/apps/hello_xsai/`
 - `firmware/riscv-rootfs/apps/gemm_precomp/`
 - `firmware/riscv-rootfs/apps/llama.cpp/`
+- `firmware/riscv-rootfs/apps/xsai-blas-test/`
 
 For `llama.cpp`, the main development surfaces are:
 
 - `ggml` AME operators
+- `ggml` xsai adapter (Q8_0 `MUL_MAT` to xsai-blas)
 - `llama-simple-xsai`
 - `llama-bench`
+
+If the failure is in the shared BLAS/GEMM library or its framework adapter,
+prefer the dedicated `xsai-blas` skill. Use this skill for the toolchain,
+disassembly, and crash-analysis mechanics.
 
 Prefer the existing Makefiles for the owning path before crafting ad hoc commands.
 
@@ -160,6 +167,22 @@ readelf -s binary_file
 
 When the failure only reproduces after packaging into the rootfs or booting Linux, include the firmware/rootfs path in the investigation instead of treating it as a pure app bug.
 
+## xsai-blas failures
+
+If the crash or wrong result is in `software/xsai-blas` or its framework
+adapter, first narrow it with the library runner:
+
+```bash
+make -C firmware/riscv-rootfs/apps/xsai-blas-test
+qemu-riscv64 -cpu rv64,v=true,vlen=128,h=true,zvfh=true,zvfhmin=true,x-matrix=true,rlen=512,mlen=65536,melen=32 \
+  -L "$RISCV_SYSROOT" firmware/riscv-rootfs/apps/xsai-blas-test/build/xsai-blas-test test --kernel gemm_i8_group32
+```
+
+A passing library test with a failing framework run points at the adapter
+(plan cache, strides, workspace, weight generation, or buffer placement), not
+at the kernel. See the `xsai-blas` skill for the full triage tree and for the
+known QEMU/NEMU/RTL differences.
+
 ## Common commands
 
 Build a rootfs app:
@@ -172,6 +195,13 @@ Build the second smoke app:
 
 ```bash
 make -C firmware/riscv-rootfs/apps/gemm_precomp install
+```
+
+Build and run the xsai-blas library tests:
+
+```bash
+make -C firmware/riscv-rootfs/apps/xsai-blas-test
+qemu-riscv64 ... firmware/riscv-rootfs/apps/xsai-blas-test/build/xsai-blas-test test
 ```
 
 Build an AM test:

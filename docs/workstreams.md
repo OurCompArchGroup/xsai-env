@@ -29,7 +29,7 @@ This document is the map for both humans and AI agents:
 | Runtime and logical program library | `nexus-am/` | AM runtime, bare-metal libraries, AM apps/tests used by NEMU and RTL flows | `make -C nexus-am/...`, `make test-matrix` |
 | Compiler / low-level codegen | `llvm-project-ame/`, `local/llvm`, `scripts/build-llvm.sh` | AME-aware LLVM/Clang, disassembly, low-level codegen semantics | `make llvm` |
 | DSL compilers | `DSL/` | High-level compiler frontends such as Triton/TileLang/TVM that eventually lower to supported kernels or binaries | workspace-specific commands under `DSL/` |
-| Software / workloads | `software/`, `firmware/riscv-rootfs/apps/`, `nexus-am/apps/` | User workloads, Linux-side apps, benchmarks, demos, AM apps; key rootfs hotspots are `hello_xsai`, `gemm_precomp`, and `llama.cpp` | `make -C firmware/riscv-rootfs/apps/<app> install`, `make firmware`, app-local builds |
+| Software / workloads | `software/`, `firmware/riscv-rootfs/apps/`, `nexus-am/apps/` | User workloads, Linux-side apps, benchmarks, demos, AM apps; `software/xsai-blas` owns the shared GEMM/attention/norm kernels, and key rootfs hotspots are `hello_xsai`, `gemm_precomp`, and `llama.cpp` | `make -C firmware/riscv-rootfs/apps/<app> install`, `make firmware`, app-local builds |
 | Checkpoint / profiling flow | `scripts/checkpoint.sh`, `firmware/gcpt_restore/`, `firmware/checkpoints/`, `firmware/simpoints/`, `NEMU/resource/simpoint/` | SimPoint flow wiring, BBV generation, clustering, checkpoint dumping, restore path | `make simpoint`, `make profile`, `make cluster`, `make ckpt` |
 | Tests | `tests/`, `nexus-am/tests/`, component-local tests | Regression coverage, end-to-end validation, bring-up checks | `make test-smoke`, `make test`, component-local test targets |
 | Tools | `tools/`, `scripts/` | Developer tooling, automation helpers, packaging, reporting | script-local commands, `make ccdb`, `bash scripts/...` |
@@ -72,10 +72,15 @@ The main AI-software development point is:
 The most important software modification surfaces there are:
 
 - `ggml` AME operators
+- the ggml xsai adapter (Q8_0 `MUL_MAT` to `software/xsai-blas`)
 - `llama-simple-xsai`
 - `llama-bench`
 
 This path is where software inference adaptation for XSAI most often lands.
+
+The shared kernel library is `software/xsai-blas/`. Framework adapters and test
+runners consume its plan ABI; they do not own the kernels. Use the `xsai-blas`
+skill for library-level integration, bug triage, and validation.
 
 ## Default Software Validation Ladder
 
