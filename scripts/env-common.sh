@@ -94,6 +94,7 @@ xsai_env_init() {
   export NOOP_HOME="${NOOP_HOME:-$XS_PROJECT_ROOT/XSAI}"
   export DRAMSIM3_HOME="${DRAMSIM3_HOME:-$XS_PROJECT_ROOT/DRAMsim3}"
   export LLVM_HOME="${LLVM_HOME:-$XS_PROJECT_ROOT/local/llvm}"
+  export XSAI_BLAS_HOME="${XSAI_BLAS_HOME:-$XS_PROJECT_ROOT/software/xsai-blas}"
 
   export XSAI_FIRMWARE_HOME="${XSAI_FIRMWARE_HOME:-$XS_PROJECT_ROOT/firmware}"
   export GCPT_RESTORE_HOME="${GCPT_RESTORE_HOME:-$XSAI_FIRMWARE_HOME/gcpt_restore}"
@@ -127,6 +128,7 @@ xsai_env_print_summary() {
   echo SET AM_HOME: "${AM_HOME}"
   echo SET DRAMSIM3_HOME: "${DRAMSIM3_HOME}"
   echo SET LLVM_HOME: "${LLVM_HOME}"
+  echo SET XSAI_BLAS_HOME: "${XSAI_BLAS_HOME}"
   if [[ -n "${RISCV:-}" ]]; then
     echo SET RISCV: "${RISCV}"
   else

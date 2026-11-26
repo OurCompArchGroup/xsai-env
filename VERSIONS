@@ -27,5 +27,5 @@ riscv-matrix-spec               511ddf6996d9ea0376ebd3539dcde7ec2af59b27    2026
 software/MNN                    f7bee4d8e2e217410afd34a785ee3bde68987d02    2026-10-13 19:23:44 +0800  (detached)                      git@github.com:OurCompArchGroup/MNN.git
 software/llama.cpp              2b8f288131f8f1467f514a28b49a0d4b4a30eb64    2026-11-06 12:59:48 +0800  (detached)                      git@github.com:OurCompArchGroup/llama.cpp.git
 software/ncnn                   915087840ac77fa9bd14d081c573dd0bf2a63f3f    2026-10-13 19:23:53 +0800  (detached)                      git@github.com:OurCompArchGroup/ncnn.git
+software/xsai-blas              dbac0dffc692ef76d559a9a8ae0fb3688933b6da    2026-11-26 11:25:45 +0800  (detached)                      git@github.com:OurCompArchGroup/xsai-blas.git
 tools/RedLeaves                 07fab5395a6cd298e728ca0c900403e70afced5b    2026-10-17 16:01:00 +0800  main                          git@github.com:OurCompArchGroup/RedLeaves.git
-xsai-blas                       353d93ba1b663ee96251e84c3a093052ff48666d    2026-11-06 12:44:49 +0800  (detached)                      git@github.com:OurCompArchGroup/xsai-blas.git

@@ -10,13 +10,14 @@ AM_HOME ?= $(XS_PROJECT_ROOT)/nexus-am
 NOOP_HOME ?= $(XS_PROJECT_ROOT)/XSAI
 LLVM_HOME ?= $(XS_PROJECT_ROOT)/local/llvm
 QEMU_HOME ?= $(XS_PROJECT_ROOT)/qemu
+XSAI_BLAS_HOME ?= $(XS_PROJECT_ROOT)/software/xsai-blas
 QEMU_HOST_CC ?= gcc
 QEMU_HOST_CXX ?= g++
 # Host-side hardening defaults may inject CET instructions (endbr64).
 # Keep this override centralized so mixed nodes can build runnable binaries.
 HOST_NO_CET_FLAG ?= -fcf-protection=none
 GCPT_RESTORE_HOME ?= $(XS_PROJECT_ROOT)/firmware/gcpt_restore
-export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME GCPT_RESTORE_HOME
+export XS_PROJECT_ROOT NEMU_HOME AM_HOME NOOP_HOME LLVM_HOME QEMU_HOME XSAI_BLAS_HOME GCPT_RESTORE_HOME
 # LibCheckpoint for multicore flows
 
 QEMU_PAYLOAD ?= $(GCPT_RESTORE_HOME)/build-qemu/build/gcpt.bin
@@ -121,7 +122,7 @@ help:
 	@echo "  make llvm        - Build custom LLVM toolchain (uses system compiler)"
 	@echo "  make gsim        - Install the latest gsim binary to local/bin"
 	@echo "  make test-smoke  - Run fast non-build smoke checks"
-	@echo "  make software-init - Initialize pinned AI framework sources, xsai-blas, and rootfs"
+	@echo "  make software-init - Initialize pinned AI framework sources, software/xsai-blas, and rootfs"
 	@echo "  make test-ai-software - Run host-only AI software integration gates"
 	@echo "  make test-fpga   - Run offline FPGA orchestration regression tests"
 	@echo "  make nemu        - Build NEMU simulator"
@@ -190,7 +191,7 @@ test-smoke:
 
 .PHONY: software-init test-ai-software
 software-init:
-	git submodule update --init software/MNN software/ncnn software/llama.cpp firmware/riscv-rootfs xsai-blas
+	git submodule update --init software/MNN software/ncnn software/llama.cpp software/xsai-blas firmware/riscv-rootfs
 
 test-ai-software:
 	bash ./scripts/test-ai-software.sh

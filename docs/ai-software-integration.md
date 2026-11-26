@@ -36,11 +36,11 @@ make test-smoke
 make test-ai-software
 ```
 
-`software-init` initializes the three framework submodules, the top-level
-`xsai-blas` library, and rootfs, at their recorded gitlinks. It does not update
-to branch tips or reset dirty worktrees. Use the normal `make init-force`
-workflow before heavy full-stack builds on a fresh checkout; Nix is not needed
-for these software entrypoints.
+`software-init` initializes the framework submodules, the `software/xsai-blas`
+library, and rootfs, at their recorded gitlinks. It does not update to branch
+tips or reset dirty worktrees. Use the normal `make init-force` workflow before
+heavy full-stack builds on a fresh checkout; Nix is not needed for these
+software entrypoints.
 
 The host gate checks selected revisions, missing-source diagnostics, explicit
 source overrides, MNN allocator wiring without source writes, model checksum
@@ -53,10 +53,14 @@ app-local clone or copies code into managed framework source.
 
 ## xsai-blas and the llama.cpp adapter
 
-`xsai-blas/` is a top-level pinned submodule rather than a `software/` child:
-several apps consume the same GEMM kernels plus the prepared-weight and plan
-runtime, not just the llama.cpp wrapper. The llama.cpp ggml
-adapter lives in `software/llama.cpp` under
+`software/xsai-blas/` is the pinned kernel library for the AI software
+workstream. It is not tied to the llama.cpp wrapper: several consumers use the
+same GEMM kernels plus the prepared-weight and plan runtime. The top-level
+`Makefile` and `scripts/env-common.sh` export `XSAI_BLAS_HOME` so app wrappers
+and framework builds resolve the library through the workspace instead of a
+hard-coded sibling path.
+
+The llama.cpp ggml adapter lives in `software/llama.cpp` under
 `ggml/src/ggml-cpu/arch/riscv/xsai/`. In a combined AME + XSAI build the XSAI
 buffer type claims Q8_0 `MUL_MAT` weight probes and dispatches them to the
 xsai-blas group32 GEMM; other weight types remain with the AME backend or the
@@ -75,6 +79,12 @@ library test cases on RISC-V Linux. On a Matrix-enabled QEMU user-mode build,
 performance-probe signal that this QEMU does not decode, so keep it for in-system
 NEMU/RTL runs. The adapter unit tests build on a non-RISC-V host as described in
 `firmware/riscv-rootfs/apps/llama.cpp/BENCHMARKS.md`.
+
+`software/xsai-blas/testcase-suite/` holds JSON-described Qwen3-shaped workload
+samples that build into RISC-V Linux programs or AM images; use them after the
+library test cases pass when the question is workload-level behavior rather
+than API correctness. For agent-facing routing, bug triage, and adapter
+guidance, see `.agents/skills/xsai-blas/SKILL.md`.
 
 ## Build gates and profiles
 

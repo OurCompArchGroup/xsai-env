@@ -12,15 +12,17 @@ Framework source is kept here as pinned submodules:
 - `software/MNN/` — AME kernels and shared allocator
 - `software/ncnn/` — NCNN framework and XSAI convolution glue
 - `software/llama.cpp/` — llama.cpp, the ggml AME backend, and the ggml xsai adapter
+- `software/xsai-blas/` — shared BLAS/GEMM kernel library, plan ABI, and tests
 
-The shared XSAI BLAS/GEMM library is pinned at the repository root as
-`xsai-blas/`, not under `software/`: several apps (llama.cpp and the rootfs test
-app) consume the same prepared-weight and kernel code, and the rootfs wrappers
-resolve it through `XS_PROJECT_ROOT`. Treat the top-level gitlink as the source
-of truth.
+The shared XSAI BLAS/GEMM library is pinned here as `software/xsai-blas/`.
+It is a library, not a framework: llama.cpp, MNN, the rootfs test app, and the
+AM test runner consume the same prepared-weight and plan runtime. The top-level
+`Makefile` and `scripts/env-common.sh` export `XSAI_BLAS_HOME` so wrappers
+resolve the library without hard-coding a sibling path. Treat the
+`software/xsai-blas` gitlink as the source of truth.
 
-The source submodules and the `xsai-blas` gitlink are the single source of
-truth. The matching
+The source submodules and the `software/xsai-blas` gitlink are the single
+source of truth. The matching
 `firmware/riscv-rootfs/apps/{mnn,ncnn,llama.cpp}/` directories contain only
 rootfs build/install wrappers and tests. They must receive an explicit
 `*_SRC` override when a different checkout is intended; they do not silently
@@ -69,8 +71,8 @@ For rootfs smoke tests, remember that "the software path works" only when all th
 
 ## Validation
 
-- `make software-init` initializes the framework sources, `xsai-blas`, and
-  rootfs at the pinned gitlinks. `make test-ai-software` runs the host-only
+- `make software-init` initializes the framework sources, `software/xsai-blas`,
+  and rootfs at the pinned gitlinks. `make test-ai-software` runs the host-only
   integration gates.
   See `../docs/ai-software-integration.md` for build gates and claim boundaries.
 - For rootfs apps, start with app-local builds under `firmware/riscv-rootfs/apps/<app>/`, then validate via `make firmware` and `make run-qemu`.
