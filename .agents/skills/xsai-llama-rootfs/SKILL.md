@@ -55,6 +55,7 @@ make run-qemu
 
 - The app Makefile builds host and RISC-V targets separately.
 - The target path explicitly enables AME-related options such as `-DGGML_RV_AME=ON`.
+- The ggml xsai adapter claims Q8_0 `MUL_MAT` weight probes and dispatches them to the shared library under `software/xsai-blas`; consult the `xsai-blas` skill for plan, weight, and fallback rules.
 - The installed rootfs binaries include `llama-simple-xsai`, `llama-bench`, `llama-batched-bench`, and the wrapper `llama-xsai`.
 - The initramfs manifest already includes `llama-simple-xsai` and `llama-bench`.
 - The current init script also contains explicit `llama-bench` benchmark invocations.
@@ -62,6 +63,7 @@ make run-qemu
 ## Typical task routing
 
 - If the change is in matrix kernels or `ggml` AME code, stay in `firmware/riscv-rootfs/apps/llama.cpp/` first.
+- If the change is in the ggml xsai adapter, Q8 placement, prepared weights, or `XSAI_GGML_Q8`, start with the `xsai-blas` skill; the kernel library owns that contract.
 - If the change is about boot-time selection, packaging, or default model wiring, inspect the rootfs manifest and init script together.
 - If the change needs ISA, toolchain, or RTL support, treat `llama.cpp` as a downstream consumer and coordinate with the owning subsystem.
 
